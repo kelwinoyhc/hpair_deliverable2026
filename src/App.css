@@ -1,19 +1,14 @@
+/*
+ * App.css holds only shell-level layout. Everything reusable (fields, buttons,
+ * notices) lives in index.css so there is one place to look for a given control.
+ */
+
 .App {
-  text-align: center;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-.App-header {
-  background-color: #282c34;
-  padding: 20px;
-  color: white;
-  margin-bottom: 20px;
-}
-
-.App-header h1 {
-  margin-bottom: 10px;
-}
-
-.App-header p {
-  font-size: 16px;
-  opacity: 0.8;
+.App main {
+  flex: 1;
 }

@@ -4,17 +4,13 @@
   "description": "A challenging multi-step form with validation and file upload",
   "private": true,
   "dependencies": {
+    "formik": "^2.2.9",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1",
-    "react-router-dom": "^6.8.1",
-    "formik": "^2.2.9",
-    "yup": "^1.0.2",
-    "axios": "^1.3.4",
     "react-dropzone": "^14.2.3",
     "react-icons": "^4.7.1",
-    "styled-components": "^5.3.9",
-    "firebase": "^10.7.1"
+    "react-scripts": "5.0.1",
+    "yup": "^1.0.2"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -39,5 +35,10 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^14.3.1",
+    "@testing-library/user-event": "^14.6.7"
   }
 }
