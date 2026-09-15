@@ -28,11 +28,30 @@ const fillPersonalStep = async (user) => {
 
 const fillContactStep = async (user) => {
   await user.type(screen.getByLabelText(/email/i), 'ada@example.com');
+  // Cleared first: the field arrives pre-seeded with the dialling code.
+  await user.clear(screen.getByLabelText(/phone number/i));
   await user.type(screen.getByLabelText(/phone number/i), '+14155551234');
   await user.type(screen.getByLabelText(/street address/i), '24 Kirkland Street');
   await user.type(screen.getByLabelText(/^city/i), 'Cambridge');
   await user.type(screen.getByLabelText(/postal code/i), '02138');
   await user.selectOptions(screen.getByLabelText(/country of residence/i), 'US');
+};
+
+const fillProfessionalStep = async (user) => {
+  const cv = new File(['CV contents'], 'ada-cv.pdf', { type: 'application/pdf' });
+  await user.upload(document.getElementById('cv'), cv);
+  await screen.findByText('ada-cv.pdf');
+  await user.click(screen.getByRole('radio', { name: /^no$/i }));
+  await user.selectOptions(screen.getByLabelText(/preferred language/i), 'en');
+  await user.selectOptions(screen.getByLabelText(/level of english/i), 'fluent');
+};
+
+/** Declines both visa and aid: the shortest valid path through the travel step. */
+const fillTravelStep = async (user) => {
+  const visa = screen.getByRole('group', { name: /will you need a visa/i });
+  await user.click(within(visa).getByRole('radio', { name: /^no$/i }));
+  const aid = screen.getByRole('group', { name: /financial aid/i });
+  await user.click(within(aid).getByRole('radio', { name: /^no$/i }));
 };
 
 const next = async (user) => {
@@ -101,6 +120,7 @@ describe('real-time validation', () => {
     await screen.findByRole('heading', { level: 2, name: 'Contact' });
 
     const phone = screen.getByLabelText(/phone number/i);
+    await user.clear(phone);
     await user.type(phone, '4155551234');
     await user.tab();
 
@@ -213,6 +233,7 @@ describe('submission', () => {
     await screen.findByRole('heading', { level: 2, name: 'Contact' });
 
     await user.type(screen.getByLabelText(/email/i), email);
+    await user.clear(screen.getByLabelText(/phone number/i));
     await user.type(screen.getByLabelText(/phone number/i), '+14155551234');
     await user.type(screen.getByLabelText(/street address/i), '24 Kirkland Street');
     await user.type(screen.getByLabelText(/^city/i), 'Cambridge');
@@ -221,12 +242,11 @@ describe('submission', () => {
     await next(user);
     await screen.findByRole('heading', { level: 2, name: 'Professional' });
 
-    const cv = new File(['CV contents'], 'ada-cv.pdf', { type: 'application/pdf' });
-    await user.upload(document.getElementById('cv'), cv);
-    await screen.findByText('ada-cv.pdf');
+    await fillProfessionalStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Travel' });
 
-    await user.click(screen.getByRole('radio', { name: /^no$/i }));
-    await user.selectOptions(screen.getByLabelText(/preferred language/i), 'en');
+    await fillTravelStep(user);
     await next(user);
     await screen.findByRole('heading', { level: 2, name: 'Review' });
 
@@ -245,10 +265,10 @@ describe('submission', () => {
     await next(user);
     await screen.findByRole('heading', { level: 2, name: 'Professional' });
 
-    const cv = new File(['CV contents'], 'ada-cv.pdf', { type: 'application/pdf' });
-    await user.upload(document.getElementById('cv'), cv);
-    await user.click(screen.getByRole('radio', { name: /^no$/i }));
-    await user.selectOptions(screen.getByLabelText(/preferred language/i), 'en');
+    await fillProfessionalStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Travel' });
+    await fillTravelStep(user);
     await next(user);
     await screen.findByRole('heading', { level: 2, name: 'Review' });
 
@@ -272,10 +292,10 @@ describe('submission', () => {
     await next(user);
     await screen.findByRole('heading', { level: 2, name: 'Professional' });
 
-    const cv = new File(['CV contents'], 'ada-cv.pdf', { type: 'application/pdf' });
-    await user.upload(document.getElementById('cv'), cv);
-    await user.click(screen.getByRole('radio', { name: /^no$/i }));
-    await user.selectOptions(screen.getByLabelText(/preferred language/i), 'en');
+    await fillProfessionalStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Travel' });
+    await fillTravelStep(user);
     await next(user);
     await screen.findByRole('heading', { level: 2, name: 'Review' });
 
@@ -331,5 +351,167 @@ describe('submission', () => {
     await screen.findByRole('heading', { name: /application is submitted/i }, { timeout: 4000 });
 
     expect(window.localStorage.getItem('hpair-form:draft')).toBeNull();
+  });
+});
+
+describe('phone dialling code prefill', () => {
+  it('seeds the code from nationality when the contact step opens', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+
+    await fillPersonalStep(user); // nationality: GB
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Contact' });
+
+    expect(screen.getByLabelText(/phone number/i)).toHaveValue('+44');
+  });
+
+  it('updates the code when the country of residence is chosen', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+
+    await fillPersonalStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Contact' });
+
+    await user.selectOptions(screen.getByLabelText(/country of residence/i), 'JP');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/phone number/i)).toHaveValue('+81');
+    });
+  });
+
+  it('does not overwrite a number the user has already typed', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+
+    await fillPersonalStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Contact' });
+
+    const phone = screen.getByLabelText(/phone number/i);
+    await user.clear(phone);
+    await user.type(phone, '+447700900123');
+
+    await user.selectOptions(screen.getByLabelText(/country of residence/i), 'JP');
+
+    // The country changed, but the typed number must survive.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/country of residence/i)).toHaveValue('JP');
+    });
+    expect(phone).toHaveValue('+447700900123');
+  });
+
+  it('does not show a validation error for the prefilled code alone', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+
+    await fillPersonalStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Contact' });
+
+    // "+44" is not valid E.164, but the user has not finished typing, so
+    // complaining about it here would be wrong.
+    expect(document.getElementById('phone-error')).toBeNull();
+  });
+});
+
+describe('travel and support step', () => {
+  const reachTravelStep = async (user) => {
+    await fillPersonalStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Contact' });
+    await fillContactStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Professional' });
+    await fillProfessionalStep(user);
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Travel' });
+  };
+
+  it('nests the visa questions two deep', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+    await reachTravelStep(user);
+
+    // Nothing beyond the first question until it is answered.
+    expect(screen.queryByText(/invitation letter to support/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/printed in your passport/i)).not.toBeInTheDocument();
+
+    const visa = screen.getByRole('group', { name: /will you need a visa/i });
+    await user.click(within(visa).getByRole('radio', { name: /^yes$/i }));
+
+    // Second level appears; third still hidden.
+    const letter = await screen.findByRole('group', { name: /invitation letter to support/i });
+    expect(screen.queryByLabelText(/printed in your passport/i)).not.toBeInTheDocument();
+
+    await user.click(within(letter).getByRole('radio', { name: /^yes$/i }));
+    expect(await screen.findByLabelText(/printed in your passport/i)).toBeInTheDocument();
+  });
+
+  it('collapses the whole visa branch when the answer changes to no', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+    await reachTravelStep(user);
+
+    const visa = screen.getByRole('group', { name: /will you need a visa/i });
+    await user.click(within(visa).getByRole('radio', { name: /^yes$/i }));
+    const letter = await screen.findByRole('group', { name: /invitation letter to support/i });
+    await user.click(within(letter).getByRole('radio', { name: /^yes$/i }));
+    await user.type(await screen.findByLabelText(/printed in your passport/i), 'ADA LOVELACE');
+
+    await user.click(within(visa).getByRole('radio', { name: /^no$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('group', { name: /invitation letter to support/i })).not.toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText(/printed in your passport/i)).not.toBeInTheDocument();
+  });
+
+  it('requires aid details only when aid is requested', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+    await reachTravelStep(user);
+
+    expect(screen.queryByLabelText(/tell us about your circumstances/i)).not.toBeInTheDocument();
+
+    const aid = screen.getByRole('group', { name: /financial aid/i });
+    await user.click(within(aid).getByRole('radio', { name: /^yes$/i }));
+
+    expect(await screen.findByLabelText(/tell us about your circumstances/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /support with/i })).toBeInTheDocument();
+
+    // Declining the visa question so only the aid fields are outstanding.
+    const visa = screen.getByRole('group', { name: /will you need a visa/i });
+    await user.click(within(visa).getByRole('radio', { name: /^no$/i }));
+
+    await next(user);
+    expect(await screen.findByText(/at least one kind of support/i)).toBeInTheDocument();
+  });
+
+  it('shows the nested answers on the review step as readable lines', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+    await reachTravelStep(user);
+
+    const visa = screen.getByRole('group', { name: /will you need a visa/i });
+    await user.click(within(visa).getByRole('radio', { name: /^yes$/i }));
+    const letter = await screen.findByRole('group', { name: /invitation letter to support/i });
+    await user.click(within(letter).getByRole('radio', { name: /^yes$/i }));
+    await user.type(await screen.findByLabelText(/printed in your passport/i), 'ADA LOVELACE');
+
+    const aid = screen.getByRole('group', { name: /financial aid/i });
+    await user.click(within(aid).getByRole('radio', { name: /^yes$/i }));
+    await user.click(screen.getByRole('checkbox', { name: /travel/i }));
+    await user.type(
+      screen.getByLabelText(/tell us about your circumstances/i),
+      'Airfare from London is beyond what I can cover as a student.'
+    );
+
+    await next(user);
+    await screen.findByRole('heading', { level: 2, name: 'Review' });
+
+    expect(screen.getByText(/invitation letter requested for ADA LOVELACE/i)).toBeInTheDocument();
+    expect(screen.getByText(/Requested — Travel \/ airfare/i)).toBeInTheDocument();
   });
 });

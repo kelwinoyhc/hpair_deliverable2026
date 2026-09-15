@@ -18,6 +18,8 @@
  * fresh form rather than a stale "you already submitted" screen.
  */
 
+import { addSubmission } from './submissionStore';
+
 const LATENCY_MS = 900;
 const RECEIPTS_KEY = 'hpair-form:last-receipt';
 
@@ -64,6 +66,9 @@ export async function submitApplication(values) {
   };
 
   saveReceipt(receipt);
+  // Also appended to the archive the admin view reads. Kept separate from the
+  // receipt: the receipt is this tab's confirmation, the archive is the record.
+  addSubmission(receipt);
   return { ok: true, receipt };
 }
 

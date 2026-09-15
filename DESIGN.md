@@ -252,7 +252,7 @@ format error. Both behaviours are pinned by tests.
 - **Phone** — E.164 (`^\+[1-9]\d{6,14}$`). Unambiguous, storable as typed, no
   dependency. Rejected `libphonenumber-js` (~145 kB for per-country formatting
   this form doesn't need). The trade-off is that the user must type a country
-  code, so the label says so and the error gives an example.
+  code — **which the form now mitigates rather than just documenting**; see below.
 - **Postal code** — shape-checked, not country-specific. Formats vary enormously
   and some countries have none; a strict per-country table would reject valid
   addresses, which is the worse failure.
@@ -263,10 +263,63 @@ format error. Both behaviours are pinned by tests.
   produces an error in the same place and style as a bad phone number. The
   dropzone's own limits are a UX nicety; the schema is the gate.
 
+### Dialling-code prefill: fixing a trade-off instead of living with it
+
+Choosing E.164 pushed work onto the user: they have to know and type `+81`. But
+the form already asks for nationality and country of residence, so it can supply
+that part itself. Select Japan, and the phone field becomes `+81`.
+
+The whole risk of a feature like this is destroying something the user typed, so
+the decision lives in a pure function (`utils/phonePrefill.js`) with one rule:
+**only ever write into an empty field, or over a bare dialling code a previous
+prefill put there.** Everything else is left alone.
+
+Three details that are easy to get wrong, and are each pinned by a test:
+
+- **`+1234` is not treated as a stale prefill.** It looks like one, but it is not
+  any country's dialling code — so it must be someone mid-typing. The check tests
+  against the real code list rather than a `/^\+\d+$/` pattern.
+- **`phone` is deliberately not a dependency of the effect.** It is read through a
+  ref. Were it a dependency, the effect would re-run on every keystroke and fight
+  the user for the field. The effect should fire when the *country* changes.
+- **The write skips validation** (`shouldValidate: false`). A bare `+81` is not
+  valid E.164, so validating on write would show an error about a value the user
+  has not had a chance to finish.
+
+Residence takes precedence over citizenship, because a phone number is far more
+likely to belong to where someone lives than to the passport they hold.
+
+The dial-code table is a ~2 KB flat map in `data/dialCodes.js`, and a test asserts
+that **every country the form offers has an entry**, so the two lists cannot drift
+apart as one is edited. Note that codes are not unique — `+1` covers the US,
+Canada and much of the Caribbean, `+7` both Russia and Kazakhstan — which is why
+the mapping is only ever used country → code, never the reverse.
+
 ### Fields added beyond the brief
 Email (a form with no reply address is not actionable), a structured address
 rather than one free-text box (sortable, and it validates), current role, and an
 explicit consent checkbox before submission.
+
+Plus a whole **Travel & support** step, which is where the form stops being a
+generic personal-information exercise and starts being a conference application:
+
+- **Visa questions, nested two deep.** "Will you need a visa?" → "Do you need an
+  invitation letter?" → "Full name as printed in your passport." Someone who needs
+  no visa is never asked about a letter, and the form cannot produce the
+  impossible state of wanting a letter without needing a visa. The passport name
+  is asked separately from the name on step one because invitation letters are
+  rejected when the name does not match the passport exactly.
+- **Financial aid**, with a checkbox group for what support is needed (travel,
+  accommodation, registration) and a free-text box for circumstances, required
+  only when aid is requested.
+- **Preferred language and English proficiency, both.** They answer different
+  questions: the language we should write to you in, versus whether you can follow
+  a panel held in English. Someone can prefer Japanese correspondence and debate
+  fluently in English, so collapsing these into one field would lose information.
+
+Every dependent field uses `.strip()` in its `otherwise` branch, so backing out of
+a branch removes those answers from the payload rather than submitting stale
+values from a path the user abandoned.
 
 ### Accessibility
 Written once in `FormFields.js` so it cannot drift per field: `label`/`for`
@@ -317,12 +370,18 @@ submitted" screen they cannot get past. Different lifetimes, different stores.
 
 ## 6. Testing
 
-50 tests across two files. Run with `npm test -- --watchAll=false`.
+108 tests across five files. Run with `npm test -- --watchAll=false`.
 
+- `utils/phonePrefill.test.js` (21) — the prefill rule, including the drift guard
+  that every offered country has a dialling code.
+- `utils/adminRows.test.js` (18) — the admin table/CSV mapping, over half of it on
+  CSV escaping and injection.
+- `components/admin/AdminView.test.js` (11) — the gate, the table, the counts, and
+  recovery from corrupt storage.
 - `validation/schemas.test.js` (34) — the rules directly. Pure, fast, and where
   the actual decisions live: what counts as a phone number, when LinkedIn becomes
   required, the two ordering bugs in §4.
-- `components/MultiStepForm.test.js` (16) — behaviour not expressible in a schema:
+- `components/MultiStepForm.test.js` (24) — behaviour not expressible in a schema:
   that you cannot advance past an invalid step, that errors never appear for a step
   you haven't reached, that conditional fields appear and disappear, that
   submission shows a loading state and then a confirmation, that a failure keeps
@@ -333,7 +392,70 @@ unguarded `scrollIntoView` that would have thrown on any browser lacking it.
 
 ---
 
-## 7. Known limitations
+## 7. The admin view, and why its login is not security
+
+Reachable at **`/#admin`**. Passcode from `REACT_APP_ADMIN_PASSCODE`, defaulting
+to `hpair-admin`.
+
+It lists submissions as rows — name, country, nationality, language, English
+level, visa status, financial aid — with three counts above the table
+(applications, invitation letters to issue, aid requests), an expandable detail
+row per application, and a CSV export.
+
+### The uncomfortable part, stated plainly
+
+**This login is not access control, and cannot be.** The passcode is compared in
+the browser, so it ships inside the JavaScript bundle and is readable in DevTools.
+Even with a perfect passcode, the data sits in `localStorage`, which any visitor
+can read directly without going near this component. Nothing a browser checks can
+be trusted, because the browser belongs to the person being checked.
+
+This is exactly the bug this project found in the starter repo (§1): it *had* a
+login, and still exposed every applicant's submission, because the narrowing to
+one user happened client-side. A login in front of client-side data is decoration.
+
+Two things follow from taking that seriously:
+
+- The warning is **in the UI**, not just in a comment, and a test asserts it is
+  still there. If it is ever deleted, someone will eventually mistake this for
+  security.
+- `.env.example` states that `REACT_APP_*` variables are public and that a real
+  credential must never be put in one.
+
+### What the real version looks like
+
+Access control has to live where the data lives:
+
+```js
+// Firestore rules — enforced on the server, not requestable around
+match /submissions/{id} {
+  allow create: if true;                                  // anyone may apply
+  allow read:   if request.auth.token.admin == true;       // only admins may read
+}
+```
+
+Plus Firebase Auth for the login and a custom claim for `admin`. The client then
+*cannot* read other applicants' rows, however it is modified — which is the
+difference between a rule and a suggestion. `services/submissionStore.js` is the
+only module that would change.
+
+### Why a hash route rather than react-router
+
+`/#admin` costs no dependency, needs no `vercel.json` rewrite, and cannot 404 on
+refresh, because the server never sees the fragment. The trade-off is worse deep
+linking and analytics — acceptable for one internal view, and it kept the routing
+dependency out of the project entirely.
+
+### CSV injection
+
+The export escapes fields per RFC 4180, and additionally prefixes a tab to any
+field starting with `=`, `+`, `-` or `@`. Excel and Google Sheets treat those as
+formulas, so an applicant typing `=HYPERLINK(...)` into the financial-aid text box
+could otherwise have it execute when an administrator opens the export. The data
+here is typed by the public, so this is a live path rather than a theoretical one.
+Six tests cover it.
+
+## 8. Known limitations
 
 Stated rather than discovered later:
 
@@ -350,10 +472,14 @@ Stated rather than discovered later:
    `Intl.DisplayNames` and ISO codes are the groundwork, not the feature.
 6. **A draft is per-browser**, not per-user; on a shared machine the next person
    sees it. Real accounts would fix this, at the cost of §1.
+7. **The admin view only ever shows submissions made in the same browser.** A
+   different laptop shows an empty table. It demonstrates the interface, not a
+   working admissions workflow — see §7.
+8. **The admin passcode is public** by construction. §7.
 
 ---
 
-## 8. Running it
+## 9. Running it
 
 ```bash
 npm install

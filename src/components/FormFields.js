@@ -181,3 +181,101 @@ export function CheckboxField({ name, label, hint }) {
     </div>
   );
 }
+
+export function TextAreaField({ name, label, hint, required, rows = 4, maxLength, ...rest }) {
+  const { field, meta, showError } = useFieldState(name);
+  const used = (field.value || '').length;
+
+  return (
+    <div className="form-group">
+      <Label htmlFor={name} required={required}>
+        {label}
+      </Label>
+      <textarea
+        {...field}
+        {...rest}
+        id={name}
+        rows={rows}
+        maxLength={maxLength}
+        className={`form-input form-textarea${showError ? ' has-error' : ''}`}
+        aria-invalid={showError || undefined}
+        aria-describedby={describedBy(name, hint, showError)}
+      />
+      {/*
+        A live character count, but only once the user is close to the limit --
+        showing "0 / 800" from the start reads as a demand for 800 characters.
+        aria-live is off deliberately: announcing every keystroke is hostile to a
+        screen-reader user, and maxLength already stops them overrunning.
+      */}
+      {maxLength && used > maxLength * 0.75 && (
+        <p className="char-count">
+          {used} / {maxLength}
+        </p>
+      )}
+      <Messages name={name} hint={hint} showError={showError} error={meta.error} />
+    </div>
+  );
+}
+
+/**
+ * A group of checkboxes backed by a single array value.
+ *
+ * Grouped in a fieldset/legend for the same reason as the radios. Unlike
+ * RadioGroup this writes an array, so the schema can require "at least one".
+ */
+export function CheckboxGroup({ name, label, hint, required, options }) {
+  const [field, meta, helpers] = useField(name);
+  const selected = Array.isArray(field.value) ? field.value : [];
+  const showError = Boolean(meta.touched && meta.error);
+
+  const toggle = (value) => {
+    const next = selected.includes(value)
+      ? selected.filter((v) => v !== value)
+      : [...selected, value];
+    helpers.setValue(next);
+    helpers.setTouched(true, false);
+  };
+
+  return (
+    <div className="form-group">
+      <fieldset
+        className="radio-fieldset"
+        aria-invalid={showError || undefined}
+        aria-describedby={describedBy(name, hint, showError)}
+      >
+        <legend className="form-label">
+          {label}
+          {required && (
+            <>
+              {' '}
+              <span className="required-mark" aria-hidden="true">
+                *
+              </span>
+              <span className="sr-only">(required)</span>
+            </>
+          )}
+        </legend>
+        <div className="radio-row">
+          {options.map((option) => (
+            <label
+              className="radio-option"
+              key={option.value}
+              htmlFor={`${name}-${option.value}`}
+            >
+              <input
+                type="checkbox"
+                id={`${name}-${option.value}`}
+                name={name}
+                value={option.value}
+                checked={selected.includes(option.value)}
+                onChange={() => toggle(option.value)}
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <Messages name={name} hint={hint} showError={showError} error={meta.error} />
+      </fieldset>
+    </div>
+  );
+}

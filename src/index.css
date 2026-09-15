@@ -451,6 +451,28 @@ select.form-input {
   padding-right: 34px;
 }
 
+.form-textarea {
+  resize: vertical;
+  min-height: 92px;
+  line-height: 1.6;
+}
+
+.char-count {
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-align: right;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Separates the visa questions from the financial-aid questions: they are
+   unrelated concerns that happen to share a step. */
+.field-divider {
+  border: none;
+  border-top: 1px solid var(--line-soft);
+  margin: 26px 0 22px;
+}
+
 .form-hint {
   font-size: 13px;
   color: var(--ink-faint);
@@ -989,5 +1011,240 @@ select.form-input {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* --- Admin: passcode gate --- */
+
+.admin-gate {
+  max-width: 400px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.admin-gate-icon {
+  width: 30px;
+  height: 30px;
+  color: var(--crimson);
+  margin-bottom: 12px;
+}
+
+.admin-gate h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.admin-gate-lede {
+  color: var(--ink-soft);
+  font-size: 14px;
+  margin-bottom: 22px;
+}
+
+.admin-gate-submit {
+  width: 100%;
+}
+
+/* Warning, not decoration: it says the gate is not security. Styled to be read,
+   not skipped. */
+.admin-gate-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  text-align: left;
+  margin-top: 22px;
+  padding: 11px 13px;
+  background: #fff9e8;
+  border: 1px solid #f0dda8;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6b5510;
+}
+
+.admin-gate-note svg {
+  flex: 0 0 14px;
+  margin-top: 3px;
+}
+
+.admin-gate-back {
+  margin-top: 18px;
+  font-size: 13px;
+}
+
+.admin-gate-back a,
+.admin-footnote a {
+  color: var(--crimson);
+  font-weight: 500;
+}
+
+/* --- Admin: submissions list --- */
+
+.admin-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.admin-head h2 {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.admin-sub {
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  margin-top: 2px;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-actions .btn {
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+
+.btn-danger {
+  background: var(--surface);
+  border-color: var(--red-line);
+  color: var(--red);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--red-wash);
+  border-color: var(--red);
+}
+
+/* The three numbers someone opens this page to find out. */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.admin-stat {
+  background: #fbf9f8;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 13px 15px;
+}
+
+.admin-stat dt {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 5px;
+}
+
+.admin-stat dd {
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--crimson);
+}
+
+/* A wide table scrolls itself rather than pushing the page sideways. */
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 10px 13px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.admin-table thead th {
+  background: #fbf9f8;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  position: sticky;
+  top: 0;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+  background: var(--crimson-wash);
+}
+
+.admin-table tr.is-open {
+  background: var(--crimson-wash);
+}
+
+.admin-detail-row td {
+  background: #fbf9f8;
+  white-space: normal;
+}
+
+.admin-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  padding: 6px 0;
+}
+
+.admin-empty {
+  text-align: center;
+  padding: 44px 20px;
+  color: var(--ink-faint);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.admin-empty svg {
+  width: 26px;
+  height: 26px;
+  margin-bottom: 10px;
+}
+
+.admin-empty p {
+  font-size: 14px;
+}
+
+.admin-empty-hint {
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.admin-footnote {
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 640px) {
+  .admin-actions .btn {
+    width: auto;
+  }
+
+  .admin-stat dd {
+    font-size: 21px;
   }
 }

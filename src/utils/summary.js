@@ -1,4 +1,5 @@
-import { COUNTRIES, GENDERS, LANGUAGES, labelFor } from '../data/options';
+import { COUNTRIES, ENGLISH_PROFICIENCY, GENDERS, LANGUAGES, labelFor } from '../data/options';
+import { AID_TYPES } from '../validation/schemas';
 
 /**
  * Turns raw form values into display-ready sections.
@@ -31,6 +32,21 @@ function addressLines(values) {
 
 function orDash(value) {
   return value && String(value).trim() ? value : '—';
+}
+
+/** Renders the nested visa answers as one readable line. */
+function visaSummary(values) {
+  if (values.needsVisa !== 'yes') return 'No visa needed';
+  if (values.needsVisaLetter === 'yes') {
+    return `Visa needed — invitation letter requested for ${values.passportName || 'name not given'}`;
+  }
+  return 'Visa needed — no invitation letter required';
+}
+
+function aidSummary(values) {
+  if (values.needsFinancialAid !== 'yes') return 'Not requested';
+  const kinds = (values.aidTypes || []).map((t) => labelFor(AID_TYPES, t)).join(', ');
+  return kinds ? `Requested — ${kinds}` : 'Requested';
 }
 
 export function buildSummary(values, { attachment } = {}) {
@@ -71,6 +87,21 @@ export function buildSummary(values, { attachment } = {}) {
           value: values.hasLinkedIn === 'yes' ? orDash(values.linkedinUrl) : 'Not provided',
         },
         { label: 'Preferred language', value: orDash(labelFor(LANGUAGES, values.preferredLanguage)) },
+        {
+          label: 'English',
+          value: orDash(labelFor(ENGLISH_PROFICIENCY, values.englishProficiency)),
+        },
+      ],
+    },
+    {
+      title: 'Travel & support',
+      step: 3,
+      items: [
+        { label: 'Visa', value: visaSummary(values) },
+        { label: 'Financial aid', value: aidSummary(values) },
+        ...(values.needsFinancialAid === 'yes'
+          ? [{ label: 'Circumstances', value: orDash(values.financialAidNotes) }]
+          : []),
       ],
     },
   ];

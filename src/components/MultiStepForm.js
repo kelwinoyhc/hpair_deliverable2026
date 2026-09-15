@@ -6,6 +6,7 @@ import StepIndicator from './StepIndicator';
 import PersonalInfoStep from './steps/PersonalInfoStep';
 import ContactStep from './steps/ContactStep';
 import ProfessionalStep from './steps/ProfessionalStep';
+import TravelStep from './steps/TravelStep';
 import ReviewStep from './steps/ReviewStep';
 import Confirmation from './Confirmation';
 
@@ -143,6 +144,7 @@ function WizardBody({
           onRestoredCvNameCleared={onRestoredCvNameCleared}
         />
       )}
+      {step === 3 && <TravelStep />}
       {step === LAST_STEP && <ReviewStep onEditStep={goToStep} />}
 
       {submitError && (

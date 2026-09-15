@@ -128,6 +128,7 @@ export const professionalSchema = Yup.object({
     otherwise: (schema) => schema.strip(),
   }),
   preferredLanguage: Yup.string().required('Preferred language is required.'),
+  englishProficiency: Yup.string().required('Please tell us your level of English.'),
   cv: Yup.mixed()
     .required('Please attach your CV.')
     .test('fileSize', 'That file is larger than 5 MB.', (file) => !file || file.size <= CV_MAX_BYTES)
@@ -138,17 +139,94 @@ export const professionalSchema = Yup.object({
     ),
 });
 
+export const AID_TYPES = [
+  { value: 'travel', label: 'Travel / airfare' },
+  { value: 'accommodation', label: 'Accommodation' },
+  { value: 'registration', label: 'Registration fee' },
+];
+
+/**
+ * Travel and support.
+ *
+ * This step is where the conditional logic actually gets interesting: the visa
+ * questions nest two deep. Someone who needs no visa is never asked about an
+ * invitation letter, and someone who needs a letter but not a visa is an
+ * impossible state the form cannot produce.
+ *
+ * Every dependent field uses `.strip()` in its `otherwise` branch, so a declined
+ * branch is removed from the payload entirely rather than submitted as a stale
+ * value from a path the user backed out of.
+ */
+export const travelSchema = Yup.object({
+  needsVisa: Yup.string()
+    .required('Please choose an option.')
+    .oneOf(['yes', 'no'], 'Please choose an option.'),
+
+  needsVisaLetter: Yup.string().when('needsVisa', {
+    is: 'yes',
+    then: (schema) =>
+      schema
+        .required('Please choose an option.')
+        .oneOf(['yes', 'no'], 'Please choose an option.'),
+    otherwise: (schema) => schema.strip(),
+  }),
+
+  // Invitation letters must match the traveller's passport exactly, which is why
+  // this is asked separately from the name given on the first step.
+  passportName: Yup.string().when(['needsVisa', 'needsVisaLetter'], {
+    is: (needsVisa, needsVisaLetter) => needsVisa === 'yes' && needsVisaLetter === 'yes',
+    then: (schema) =>
+      schema
+        .trim()
+        .required('We need the name as printed in your passport.')
+        .min(2, 'Please enter the full name as printed.')
+        .max(100, 'Please use 100 characters or fewer.'),
+    otherwise: (schema) => schema.strip(),
+  }),
+
+  needsFinancialAid: Yup.string()
+    .required('Please choose an option.')
+    .oneOf(['yes', 'no'], 'Please choose an option.'),
+
+  aidTypes: Yup.array().when('needsFinancialAid', {
+    is: 'yes',
+    then: (schema) =>
+      schema
+        .of(Yup.string().oneOf(AID_TYPES.map((t) => t.value)))
+        .min(1, 'Select at least one kind of support.'),
+    otherwise: (schema) => schema.strip(),
+  }),
+
+  financialAidNotes: Yup.string().when('needsFinancialAid', {
+    is: 'yes',
+    then: (schema) =>
+      schema
+        .trim()
+        .required('Please tell us a little about your circumstances.')
+        .min(20, 'A sentence or two helps us assess this fairly.')
+        .max(800, 'Please use 800 characters or fewer.'),
+    otherwise: (schema) => schema.strip(),
+  }),
+});
+
 export const reviewSchema = Yup.object({
   consent: Yup.boolean().oneOf([true], 'Please confirm before submitting.').required(),
 });
 
 /** Indexed by step number, so the wizard validates only what is on screen. */
-export const STEP_SCHEMAS = [personalSchema, contactSchema, professionalSchema, reviewSchema];
+export const STEP_SCHEMAS = [
+  personalSchema,
+  contactSchema,
+  professionalSchema,
+  travelSchema,
+  reviewSchema,
+];
 
 /** The full form, used as a final gate immediately before submission. */
 export const fullSchema = personalSchema
   .concat(contactSchema)
   .concat(professionalSchema)
+  .concat(travelSchema)
   .concat(reviewSchema);
 
 export const INITIAL_VALUES = {
@@ -170,7 +248,14 @@ export const INITIAL_VALUES = {
   hasLinkedIn: '',
   linkedinUrl: '',
   preferredLanguage: '',
+  englishProficiency: '',
   cv: null,
+  needsVisa: '',
+  needsVisaLetter: '',
+  passportName: '',
+  needsFinancialAid: '',
+  aidTypes: [],
+  financialAidNotes: '',
   consent: false,
 };
 
@@ -178,8 +263,23 @@ export const INITIAL_VALUES = {
 export const STEP_FIELDS = [
   ['firstName', 'lastName', 'dateOfBirth', 'gender', 'genderSelfDescribed', 'nationality'],
   ['email', 'phone', 'addressLine1', 'addressLine2', 'city', 'region', 'postalCode', 'country'],
-  ['currentRole', 'hasLinkedIn', 'linkedinUrl', 'preferredLanguage', 'cv'],
+  [
+    'currentRole',
+    'hasLinkedIn',
+    'linkedinUrl',
+    'preferredLanguage',
+    'englishProficiency',
+    'cv',
+  ],
+  [
+    'needsVisa',
+    'needsVisaLetter',
+    'passportName',
+    'needsFinancialAid',
+    'aidTypes',
+    'financialAidNotes',
+  ],
   ['consent'],
 ];
 
-export const STEP_TITLES = ['Personal', 'Contact', 'Professional', 'Review'];
+export const STEP_TITLES = ['Personal', 'Contact', 'Professional', 'Travel', 'Review'];

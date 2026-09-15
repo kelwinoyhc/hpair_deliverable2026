@@ -42,6 +42,7 @@ const validContact = {
 const validProfessional = {
   hasLinkedIn: 'no',
   preferredLanguage: 'en',
+  englishProficiency: 'fluent',
   cv: fakeFile(),
 };
 

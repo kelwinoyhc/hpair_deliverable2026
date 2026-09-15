@@ -54,6 +54,29 @@ function toSortedOptions(codes, type) {
 export const COUNTRIES = toSortedOptions(COUNTRY_CODES, 'region');
 export const LANGUAGES = toSortedOptions(LANGUAGE_CODES, 'language');
 
+/**
+ * Self-assessed English proficiency.
+ *
+ * Asked alongside preferred language, not instead of it: they answer different
+ * questions. Preferred language is what we should *write to you in*; proficiency
+ * is whether you can follow a panel held in English. Someone can prefer Japanese
+ * correspondence and still debate fluently in English.
+ *
+ * The conference is conducted in English, so what matters is whether someone can
+ * follow a panel and contribute to a discussion -- not which languages they speak.
+ * The labels describe situations rather than using CEFR codes (B2, C1), because
+ * applicants reliably know how a seminar feels and unreliably know their CEFR
+ * band. Ordered strongest first: most applicants to an English-language
+ * conference are at the top of this scale, so it is the shortest path for them.
+ */
+export const ENGLISH_PROFICIENCY = [
+  { value: 'native', label: 'Native or bilingual' },
+  { value: 'fluent', label: 'Fluent — comfortable presenting and debating' },
+  { value: 'advanced', label: 'Advanced — follow academic discussion easily' },
+  { value: 'intermediate', label: 'Intermediate — follow with some effort' },
+  { value: 'basic', label: 'Basic — need support to participate' },
+];
+
 export const GENDERS = [
   { value: 'female', label: 'Female' },
   { value: 'male', label: 'Male' },

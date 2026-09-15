@@ -2,7 +2,7 @@ import React from 'react';
 import { useFormikContext } from 'formik';
 import { TextField, SelectField, RadioGroup } from '../FormFields';
 import CvUpload from '../CvUpload';
-import { LANGUAGES } from '../../data/options';
+import { ENGLISH_PROFICIENCY, LANGUAGES } from '../../data/options';
 
 export default function ProfessionalStep({ restoredCvName, onRestoredCvNameCleared }) {
   const { values } = useFormikContext();
@@ -48,14 +48,30 @@ export default function ProfessionalStep({ restoredCvName, onRestoredCvNameClear
         />
       )}
 
-      <SelectField
-        name="preferredLanguage"
-        label="Preferred language"
-        hint="The language we will use for correspondence and materials."
-        options={LANGUAGES}
-        required
-        placeholder="Select a language"
-      />
+      {/*
+        Two related but distinct questions, paired so the distinction is visible:
+        the language we write to you in, and whether you can follow a panel held
+        in English. Preferring Japanese correspondence and debating fluently in
+        English are not in tension.
+      */}
+      <div className="field-row">
+        <SelectField
+          name="preferredLanguage"
+          label="Preferred language"
+          hint="The language we will use for correspondence and materials."
+          options={LANGUAGES}
+          required
+          placeholder="Select a language"
+        />
+        <SelectField
+          name="englishProficiency"
+          label="Level of English"
+          hint="The conference itself runs in English. This never affects acceptance."
+          options={ENGLISH_PROFICIENCY}
+          required
+          placeholder="Select a level"
+        />
+      </div>
     </div>
   );
 }

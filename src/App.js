@@ -1,27 +1,27 @@
 import React from 'react';
 import BrandMark from './components/BrandMark';
 import MultiStepForm from './components/MultiStepForm';
+import AdminGate from './components/admin/AdminGate';
+import AdminView from './components/admin/AdminView';
+import { useHashRoute } from './hooks/useHashRoute';
 import './App.css';
 
 /**
- * No router.
- *
- * The app is a single form whose position is wizard state, not a URL. Adding
- * react-router would mean either deep links that can be opened mid-form with no
- * answers behind them, or routes guarded well enough to be unreachable -- plus a
- * `vercel.json` rewrite so a refresh on /step/2 doesn't 404. None of that buys
- * the user anything here, so the dependency is gone.
+ * No router; see hooks/useHashRoute.js for why.
  *
  * The masthead and the page title are separate bands: the crimson band is the
  * organisation's identity and stays constant, while the white band below it says
  * what this particular page is. Collapsing them into one would make the brand
- * lockup compete with the form's own heading.
+ * lockup compete with the page's own heading.
  */
 export default function App() {
+  const route = useHashRoute();
+  const isAdmin = route === 'admin';
+
   return (
-    <div className="App">
-      <a className="skip-link" href="#form">
-        Skip to form
+    <div className="App" id="top">
+      <a className="skip-link" href={isAdmin ? '#admin-main' : '#form'}>
+        Skip to content
       </a>
 
       <header className="App-header">
@@ -32,24 +32,36 @@ export default function App() {
 
       <div className="page-title">
         <div className="page-title-inner">
-          <p className="eyebrow">Delegate Application</p>
-          <h1>Tell us about yourself</h1>
-          <p>
-            A few details so we can process your application and reach you. It takes about three
-            minutes, and your progress is saved as you go.
-          </p>
+          <p className="eyebrow">{isAdmin ? 'Internal' : 'Delegate Application'}</p>
+          <h1>{isAdmin ? 'Submitted applications' : 'Tell us about yourself'}</h1>
+          {!isAdmin && (
+            <p>
+              A few details so we can process your application and reach you. It takes about
+              three minutes, and your progress is saved as you go.
+            </p>
+          )}
         </div>
       </div>
 
-      <main className="container" id="form">
-        <div className="form-container">
-          <MultiStepForm />
-        </div>
-        <p className="footnote">
-          Your answers are saved in this browser as you type, and are not sent anywhere until you
-          press submit.
-        </p>
-      </main>
+      {isAdmin ? (
+        <main className="container" id="admin-main">
+          <div className="form-container">
+            <AdminGate>
+              <AdminView />
+            </AdminGate>
+          </div>
+        </main>
+      ) : (
+        <main className="container" id="form">
+          <div className="form-container">
+            <MultiStepForm />
+          </div>
+          <p className="footnote">
+            Your answers are saved in this browser as you type, and are not sent anywhere until
+            you press submit.
+          </p>
+        </main>
+      )}
     </div>
   );
 }
