@@ -7,29 +7,60 @@
  * (.form-input, .btn, .step-indicator, .file-upload-area, .summary-section) map
  * onto exactly what this form needs, and one global sheet for one page has no
  * runtime cost.
+ *
+ * PALETTE
+ * Taken from hpair.org's own stylesheet rather than guessed. Squarespace exposes
+ * the site's theme as HSL custom properties; the relevant ones were:
+ *     --accent-hsl:      0, 88%, 21%   ->  #650606  deepest crimson
+ *     --darkAccent-hsl:  353, 90%, 31% ->  #960819  crimson
+ *     --lightAccent-hsl: 0, 94%, 42%   ->  #d00606  bright red
+ *     --black-hsl:       40, 1%, 9%    ->  warm near-black
+ *     --white-hsl:       40, 0%, 99%   ->  warm near-white
+ * The warm (40deg) neutrals matter: a cool grey next to crimson reads as a
+ * mismatch, so the greys here all carry a little warmth.
+ *
+ * ONE PROBLEM WORTH NAMING
+ * The brand colour is crimson, and the conventional colour for an error is also
+ * red. Tinting every invalid field in a near-brand colour would make errors
+ * ambiguous. Two things resolve it: the error red is shifted warm and lighter
+ * (#b5341f) so it is visibly not the brand crimson, and every error carries an
+ * alert icon, so an error is identified by shape and not by hue alone. That is
+ * also what WCAG 1.4.1 requires -- colour must never be the only signal.
  */
 
 :root {
-  --blue: #0b5cd5;
-  --blue-dark: #0846a4;
-  --blue-wash: #eaf1fd;
-  --green: #17794d;
-  --green-wash: #e6f4ec;
-  --red: #c5283d;
-  --red-wash: #fdecee;
+  /* Brand */
+  --crimson: #8c0a1c;
+  --crimson-deep: #650606;
+  --crimson-wash: #fdf2f3;
+  --crimson-line: #f0d5d8;
 
-  --ink: #16191f;
-  --ink-soft: #4b5563;
-  --ink-faint: #6b7280;
-  --line: #d9dde3;
-  --line-soft: #e8ebef;
+  /* Status. Deliberately distinct from the brand crimson. */
+  --red: #b5341f;
+  --red-wash: #fdf1ee;
+  --red-line: #f3d2c9;
+  --green: #17694a;
+  --green-wash: #e8f3ed;
+  --green-line: #c2ddcd;
+
+  /* Warm neutrals, to sit with crimson rather than fight it. */
+  --ink: #1a1817;
+  --ink-soft: #55504c;
+  /* Darkened from #78716b, which measured 4.42:1 against --canvas and so
+     failed WCAG AA for the footnote that sits on it. Now 4.68:1. */
+  --ink-faint: #746d67;
+  --line: #ddd8d4;
+  --line-soft: #ebe7e3;
   --surface: #ffffff;
-  --canvas: #f4f6f9;
+  --canvas: #f7f5f3;
 
   --radius: 10px;
   --radius-sm: 6px;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
-  --focus: 0 0 0 3px rgba(11, 92, 213, 0.35);
+  --shadow: 0 1px 2px rgba(26, 24, 23, 0.04), 0 10px 28px rgba(26, 24, 23, 0.07);
+  --focus: 0 0 0 3px rgba(140, 10, 28, 0.32);
+
+  /* The wide tracking of the HPAIR banner, reused for every uppercase label. */
+  --tracking-wide: 0.16em;
 }
 
 * {
@@ -39,8 +70,10 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue',
-    Arial, sans-serif;
+  /* Poppins is hpair.org's typeface; the system stack carries the page if the
+     webfont is slow or blocked, which is why `display=swap` is set on the link. */
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--canvas);
@@ -76,7 +109,7 @@ code {
   z-index: 10;
   padding: 12px 18px;
   background: var(--surface);
-  color: var(--blue);
+  color: var(--crimson);
   font-weight: 600;
   border-radius: 0 0 var(--radius-sm) 0;
 }
@@ -96,36 +129,114 @@ code {
 
 /* --- Shell --- */
 
+/* The masthead mirrors hpair.org's use of the white lockup on deep crimson.
+   The gradient is a single subtle shift, not a showy one -- it keeps a large
+   flat area of crimson from banding on wide screens. */
 .App-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--line-soft);
-  padding: 28px 20px;
+  background: linear-gradient(180deg, var(--crimson) 0%, var(--crimson-deep) 100%);
+  color: #fff;
+  padding: 0;
 }
 
 .header-inner {
   max-width: 760px;
   margin: 0 auto;
+  padding: 26px 20px 28px;
+}
+
+/* --- Brand lockup --- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-shield {
+  width: 30px;
+  height: 36px;
+  flex: 0 0 30px;
+}
+
+/* On crimson the shield would disappear, so it inverts to white with the bars
+   punched out in crimson. `currentColor` on the path makes this a one-line swap. */
+.brand-light .brand-shield {
+  color: #fff;
+}
+
+.brand-light .brand-shield g rect {
+  fill: var(--crimson);
+}
+
+.brand-dark .brand-shield {
+  color: var(--crimson);
+}
+
+.brand-type {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* The wide-tracked uppercase treatment is the distinctive part of the HPAIR
+   banner, so it is reproduced faithfully here. */
+.brand-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.brand-full {
+  font-size: 9.5px;
+  font-weight: 300;
+  letter-spacing: 0.14em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.brand-dark .brand-full {
+  color: var(--ink-soft);
+  opacity: 1;
+}
+
+/* --- Page title, below the masthead --- */
+
+.page-title {
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface);
+}
+
+.page-title-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 22px 20px;
 }
 
 .eyebrow {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--blue);
-  margin-bottom: 6px;
+  color: var(--crimson);
+  margin-bottom: 7px;
 }
 
-.App-header h1 {
-  font-size: clamp(22px, 4vw, 30px);
+.page-title h1 {
+  font-size: clamp(21px, 4vw, 29px);
+  font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.015em;
   margin-bottom: 6px;
 }
 
-.App-header p {
+.page-title p {
   color: var(--ink-soft);
   font-size: 15px;
+  max-width: 54ch;
 }
 
 .container {
@@ -221,7 +332,7 @@ code {
 }
 
 .step-number.active {
-  background-color: var(--blue);
+  background-color: var(--crimson);
   color: #fff;
 }
 
@@ -232,13 +343,16 @@ code {
 
 .step-title {
   font-weight: 500;
-  font-size: 14px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* --- Step content --- */
 
 .step-heading {
-  font-size: 19px;
+  font-size: 18px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   margin-bottom: 4px;
 }
@@ -286,7 +400,7 @@ code {
   display: block;
   margin-bottom: 6px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--ink);
 }
 
@@ -307,12 +421,17 @@ code {
 }
 
 .form-input::placeholder {
-  color: #9aa1ab;
+  /* 4.52:1 on white. Placeholders are text and WCAG makes no exception for them,
+     so the pale grey most design systems use (this was #a8a099, 2.58:1) fails.
+     The risk of a darker placeholder is that it reads as a real value -- mitigated
+     here because every field has a visible label above it and the placeholders are
+     plainly examples, never the only statement of what a field wants. */
+  color: #7d756e;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--blue);
+  border-color: var(--crimson);
   box-shadow: var(--focus);
 }
 
@@ -321,12 +440,12 @@ code {
 }
 
 .form-input.has-error:focus {
-  box-shadow: 0 0 0 3px rgba(197, 40, 61, 0.28);
+  box-shadow: 0 0 0 3px rgba(181, 52, 31, 0.28);
 }
 
 select.form-input {
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%2378716b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 34px;
@@ -341,11 +460,19 @@ select.form-input {
 .form-error {
   display: flex;
   align-items: flex-start;
-  gap: 5px;
+  gap: 6px;
   color: var(--red);
   font-size: 13px;
   font-weight: 500;
-  margin-top: 5px;
+  margin-top: 6px;
+}
+
+.form-error-icon {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  /* Nudged to sit on the text's first line rather than its box. */
+  margin-top: 2.5px;
 }
 
 /* --- Radios and checkboxes --- */
@@ -375,13 +502,13 @@ select.form-input {
 
 .radio-option:hover,
 .checkbox-option:hover {
-  border-color: var(--blue);
-  background: var(--blue-wash);
+  border-color: var(--crimson);
+  background: var(--crimson-wash);
 }
 
 .radio-option input,
 .checkbox-option input {
-  accent-color: var(--blue);
+  accent-color: var(--crimson);
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
@@ -405,19 +532,19 @@ select.form-input {
   padding: 30px 20px;
   text-align: center;
   cursor: pointer;
-  background: #fbfcfd;
+  background: #fdfcfb;
   transition: border-color 0.15s, background-color 0.15s;
 }
 
 .file-upload-area:hover {
-  border-color: var(--blue);
-  background-color: var(--blue-wash);
+  border-color: var(--crimson);
+  background-color: var(--crimson-wash);
 }
 
 .file-upload-area.dragover {
-  border-color: var(--blue);
+  border-color: var(--crimson);
   border-style: solid;
-  background-color: var(--blue-wash);
+  background-color: var(--crimson-wash);
 }
 
 .file-upload-area.has-error {
@@ -428,7 +555,7 @@ select.form-input {
 .upload-icon {
   width: 26px;
   height: 26px;
-  color: var(--blue);
+  color: var(--crimson);
   margin-bottom: 8px;
 }
 
@@ -443,6 +570,10 @@ select.form-input {
   margin-top: 2px;
 }
 
+.file-list {
+  margin-top: 8px;
+}
+
 .file-item {
   display: flex;
   align-items: center;
@@ -450,7 +581,7 @@ select.form-input {
   gap: 12px;
   padding: 12px 14px;
   background-color: var(--green-wash);
-  border: 1px solid #c2e3d1;
+  border: 1px solid var(--green-line);
   border-radius: var(--radius-sm);
 }
 
@@ -502,7 +633,7 @@ select.form-input {
 /* --- Review summary --- */
 
 .summary-section {
-  background-color: #fafbfc;
+  background-color: #fbf9f8;
   border: 1px solid var(--line-soft);
   padding: 16px 18px;
   border-radius: var(--radius);
@@ -518,8 +649,11 @@ select.form-input {
 }
 
 .summary-title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--crimson);
 }
 
 .summary-list {
@@ -571,12 +705,12 @@ select.form-input {
 }
 
 .btn-primary {
-  background-color: var(--blue);
+  background-color: var(--crimson);
   color: #fff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--blue-dark);
+  background-color: var(--crimson-deep);
 }
 
 .btn-secondary {
@@ -599,7 +733,7 @@ select.form-input {
   background: none;
   border: none;
   padding: 2px 4px;
-  color: var(--blue);
+  color: var(--crimson);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
@@ -610,7 +744,7 @@ select.form-input {
 }
 
 .link-button:hover {
-  color: var(--blue-dark);
+  color: var(--crimson-deep);
 }
 
 .form-actions {
@@ -650,9 +784,9 @@ select.form-input {
 }
 
 .notice-info {
-  background: var(--blue-wash);
-  border: 1px solid #c5daf8;
-  color: #0a3f93;
+  background: var(--crimson-wash);
+  border: 1px solid var(--crimson-line);
+  color: var(--crimson-deep);
 }
 
 .submit-message {
@@ -669,13 +803,13 @@ select.form-input {
 .submit-message.success {
   background-color: var(--green-wash);
   color: var(--green);
-  border: 1px solid #c2e3d1;
+  border: 1px solid var(--green-line);
 }
 
 .submit-message.error {
   background-color: var(--red-wash);
   color: var(--red);
-  border: 1px solid #f5c6cb;
+  border: 1px solid var(--red-line);
 }
 
 .spinner {
@@ -728,7 +862,7 @@ select.form-input {
   display: inline-grid;
   gap: 8px;
   text-align: left;
-  background: #fafbfc;
+  background: #fbf9f8;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
   padding: 14px 18px;
@@ -769,7 +903,7 @@ select.form-input {
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
-  color: var(--blue);
+  color: var(--crimson);
   margin-bottom: 14px;
   border-radius: var(--radius-sm);
 }
@@ -779,6 +913,21 @@ select.form-input {
 @media (max-width: 640px) {
   .container {
     padding: 16px 14px 40px;
+  }
+
+  /* The full organisation name wraps to four cramped lines on a phone, so below
+     this width the lockup keeps the shield and "HPAIR" and drops the subtitle --
+     the <title> and page heading still say what this is. */
+  .brand-full {
+    display: none;
+  }
+
+  .header-inner {
+    padding: 18px 16px 20px;
+  }
+
+  .page-title-inner {
+    padding: 18px 16px;
   }
 
   .form-container {

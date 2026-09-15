@@ -1,5 +1,6 @@
 import React from 'react';
 import { useField } from 'formik';
+import { FiAlertCircle } from 'react-icons/fi';
 
 /**
  * Field primitives.
@@ -47,7 +48,11 @@ function Messages({ name, hint, showError, error }) {
       )}
       {showError && (
         <p className="form-error" id={`${name}-error`} role="alert">
-          {error}
+          {/* The icon is not decoration. The brand colour here is crimson, so an
+              error tinted red alone would be ambiguous -- the icon makes an error
+              identifiable by shape, which is also what WCAG 1.4.1 requires. */}
+          <FiAlertCircle className="form-error-icon" aria-hidden="true" />
+          <span>{error}</span>
         </p>
       )}
     </>

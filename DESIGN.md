@@ -140,7 +140,7 @@ Added as **devDependencies** (not shipped): `@testing-library/react`,
 
 ---
 
-## 3. Styling
+## 3. Styling and brand
 
 Plain CSS with custom properties in `index.css`, not styled-components.
 
@@ -154,6 +154,64 @@ no runtime cost and no build-time setup.
 Responsive behaviour is a single breakpoint at 640px. Paired fields collapse to
 one column, the step indicator drops its text labels and keeps the numbered
 circles, and buttons go full-width. Nothing is hidden that carries information.
+
+### The palette is measured, not guessed
+
+hpair.org runs on Squarespace, which exposes the site's theme as HSL custom
+properties. Pulling its stylesheet gave the real values:
+
+| Variable | Value | Hex |
+| --- | --- | --- |
+| `--accent-hsl` | `0, 88%, 21%` | `#650606` deepest crimson |
+| `--darkAccent-hsl` | `353, 90%, 31%` | `#960819` crimson |
+| `--black-hsl` | `40, 1%, 9%` | warm near-black |
+| `--white-hsl` | `40, 0%, 99%` | warm near-white |
+
+Two things came out of that beyond the crimson. The typeface is **Poppins**
+(loaded with `display=swap` and a full fallback stack, so text never blocks on
+the webfont). And the neutrals are *warm* — that 40° hue on the greys is why the
+palette here uses warm greys throughout; a cool grey beside crimson reads as an
+accident.
+
+### The logo
+
+An original inline-SVG mark: a crimson shield with three bars abstracting the
+three books of the Harvard arms, beside the wide-tracked two-line uppercase
+lockup that is the distinctive part of the HPAIR banner.
+
+It deliberately does **not** reproduce Harvard's VERITAS crest, which is a
+registered mark. Inline SVG over an image file because it stays crisp at any
+size, the words remain selectable and readable by screen readers, and it costs no
+network request. To use HPAIR's official asset instead, drop the PNG in `public/`
+and swap the `<svg>` for an `<img>` — the surrounding typography carries the
+identity either way.
+
+### A conflict worth naming: crimson is both the brand and the error colour
+
+If invalid fields are tinted red on a crimson-branded page, "error" and "brand"
+become the same signal. Two things resolve it:
+
+1. The error red is shifted warm and lighter (`#b5341f`) so it is visibly not the
+   brand crimson.
+2. **Every error carries an alert icon**, so an error is identified by shape, not
+   hue. This is also what WCAG 1.4.1 requires — colour must never be the only
+   means of conveying information.
+
+### Contrast was measured, and two values failed
+
+Every foreground/background pair was checked against WCAG AA (4.5:1 for body
+text). Two of my first choices failed and were corrected:
+
+- `--ink-faint` at `#78716b` measured **4.42:1** against the page canvas, which
+  the footnote sits on. Darkened to `#746d67` (4.68:1).
+- The placeholder grey `#a8a099` measured **2.58:1**. Placeholders are text and
+  WCAG makes no exception for them, so it was darkened to `#7d756e` (4.52:1). The
+  risk of a darker placeholder is that it reads as a filled value; that is
+  acceptable here only because every field has a visible label above it and no
+  placeholder is ever the sole statement of what a field wants.
+
+The rest clear AA comfortably — white on the crimson masthead is 9.65:1, body ink
+on white is 17.69:1.
 
 ---
 

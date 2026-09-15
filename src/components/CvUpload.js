@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useField, useFormikContext } from 'formik';
-import { FiUploadCloud, FiFileText, FiX } from 'react-icons/fi';
+import { FiUploadCloud, FiFileText, FiX, FiAlertCircle } from 'react-icons/fi';
 import { CV_ACCEPTED_TYPES, CV_MAX_BYTES } from '../validation/schemas';
 
 /**
@@ -137,7 +137,8 @@ export default function CvUpload({ name = 'cv', restoredName, onRestoredNameClea
 
       {error && (
         <p className="form-error" id={`${name}-error`} role="alert">
-          {error}
+          <FiAlertCircle className="form-error-icon" aria-hidden="true" />
+          <span>{error}</span>
         </p>
       )}
     </div>
