@@ -468,11 +468,22 @@ expandable detail row per application, and a CSV export.
 ### The claim to be precise about
 
 **The sign-in form is not what protects the data.** Delete `AdminGate.js`
-entirely and not one row becomes readable, because the select policy matches no
-rows for a non-admin JWT. Open the console on the deployed site and run
-`supabase.from('submissions').select()` yourself and you get an empty array — not
-an error, because a policy should not confirm that rows exist to someone who may
-not read them.
+entirely and not one row becomes readable. Two independent layers in Postgres
+both have to be wrong before anything leaks:
+
+1. **GRANT.** `anon` has `INSERT` only. A signed-out visitor asking to read the
+   table is refused with `42501 permission denied` before row level security is
+   even consulted.
+2. **POLICY.** `authenticated` *may* select, but the policy matches only the
+   admin's JWT email, so any other signed-in user gets zero rows.
+
+Nothing anywhere is granted `UPDATE` or `DELETE`.
+
+This distinction cost real debugging time and is worth knowing: the policies were
+written before the grants, so every request failed with `permission denied for
+table submissions` — which reads like an RLS problem and is not one. Postgres
+checks "may this role touch the table" and "which rows may it see" separately, in
+that order, and a request that fails the first never reaches the second.
 
 That is the whole difference from the starter repo (§1), which had credentials
 *and* a login and still exposed every applicant's submission, because the

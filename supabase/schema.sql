@@ -43,6 +43,40 @@ create index if not exists submissions_submitted_at_idx
   on public.submissions (submitted_at desc);
 
 -- ---------------------------------------------------------------------------
+-- Table privileges (GRANT) -- the layer BEFORE row level security
+-- ---------------------------------------------------------------------------
+--
+-- These are easy to forget and produce a confusing error when missing:
+-- `42501 permission denied for table submissions`, which looks like an RLS
+-- problem but is not. Postgres checks two independent things, in this order:
+--
+--   1. GRANT  -- may this role touch the table at all?
+--   2. POLICY -- which rows may it see or write?
+--
+-- A request that fails step 1 never reaches the policies. Supabase's dashboard
+-- normally applies default privileges for tables created through the Table
+-- Editor, but a table created in the SQL Editor may not receive them, so they
+-- are granted explicitly here.
+--
+-- Least privilege, deliberately:
+--
+--   anon          INSERT only. A visitor submits an application; they have no
+--                 reason to read the table, so they cannot -- and this is
+--                 refused at the GRANT layer, before RLS is even consulted.
+--                 Two independent layers have to be wrong for data to leak.
+--
+--   authenticated INSERT and SELECT. The admin needs to read, and *which* rows
+--                 they may read is then decided by the policy below.
+--
+-- Note what is NOT granted anywhere: UPDATE and DELETE. An application cannot be
+-- modified or removed from the browser at all, by anyone.
+
+grant usage on schema public to anon, authenticated;
+
+grant insert on public.submissions to anon;
+grant insert, select on public.submissions to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
 --
@@ -93,5 +127,15 @@ create policy "only the admin may read submissions"
 -- Run this after the above. It should return one row per policy (2), and
 -- rowsecurity = true. If RLS is not enabled, the table is world-readable.
 --
+--   -- RLS must be on, or the anon key alone can read the table:
 --   select relname, relrowsecurity from pg_class where relname = 'submissions';
+--
+--   -- Two policies expected:
 --   select policyname, cmd, roles from pg_policies where tablename = 'submissions';
+--
+--   -- Grants: anon should have INSERT only; authenticated INSERT and SELECT.
+--   -- Neither should have UPDATE or DELETE.
+--   select grantee, privilege_type
+--     from information_schema.role_table_grants
+--    where table_name = 'submissions' and grantee in ('anon', 'authenticated')
+--    order by grantee, privilege_type;

@@ -264,14 +264,25 @@ rendering. That's why 34 of the 107 tests are pure schema tests.
 `/#admin`. Sign in with Supabase Auth using the admin email.
 
 **The point to make:** the sign-in form is not what protects the data. Delete
-`AdminGate.js` entirely and not one row becomes readable, because the RLS policy
-matches no rows for a non-admin JWT. The component is a convenience for the
-admin, not a barrier for anyone else.
+`AdminGate.js` entirely and not one row becomes readable. The component is a
+convenience for the admin, not a barrier for anyone else.
 
-Ask yourself the question they'll ask: *"what happens if I open DevTools and call
-`supabase.from('submissions').select()` myself?"* Answer: you get an empty array.
-Not an error — a policy shouldn't confirm that rows exist to someone who can't
-read them.
+**Two layers, and knowing they're separate is the good answer.** Postgres checks:
+
+1. **GRANT** — may this role touch the table at all? `anon` has `INSERT` only.
+2. **POLICY** — which rows may it see? Only the admin's JWT email matches.
+
+So *"what if I open DevTools and call `supabase.from('submissions').select()`?"*
+→ signed out, you're refused at the grant layer (`42501 permission denied`);
+signed in as anyone but the admin, you pass the grant and the policy returns zero
+rows. Two independent things have to be wrong for data to leak.
+
+Nothing is granted `UPDATE` or `DELETE` anywhere.
+
+**This bit me, which makes it worth telling.** I wrote the policies and forgot the
+grants, so every request failed with `permission denied for table submissions` —
+which looks like an RLS misconfiguration and isn't. A request that fails the grant
+check never reaches the policies.
 
 **There's still a fallback passcode**, used only when no Supabase project is
 configured, so a fresh clone runs. That mode says on screen that it isn't
@@ -494,7 +505,7 @@ judgement; being caught by them reads as not knowing your own code.**
 | --- | --- |
 | "Is the data saved anywhere?" | Yes — a Supabase Postgres table. Reads are restricted by an RLS policy, not by the front-end. |
 | "Your anon key is in the bundle." | By design. It identifies the project; it authorises nothing. The protection is the policy. If RLS were off, the key alone would read the table — which is why the schema file ends with a query to verify RLS is on. |
-| "What stops an applicant reading other applications?" | Postgres. The select policy matches only the admin's JWT email, so anyone else gets zero rows — including from the console. |
+| "What stops an applicant reading other applications?" | Two layers of Postgres. `anon` isn't granted SELECT at all, so a signed-out read is refused before RLS runs; a signed-in non-admin passes the grant but the policy matches zero rows. Neither is the front-end's doing. |
 | "60 kB for a client library on a form?" | Fair. Hand-rolled `fetch` against PostgREST would be ~80 lines and no dependency. I took the library for auth session handling; I'd revisit it if bundle size mattered. |
 | "Can you email the response?" | Not without a backend, so I didn't fake it. It's listed as a known limitation. |
 | "Does the CV get uploaded?" | No — name, size and type are recorded; contents are never read. A real version needs multipart upload or a signed URL. |
