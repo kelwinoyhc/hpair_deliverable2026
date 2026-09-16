@@ -39,20 +39,12 @@ describe('toRow', () => {
     expect(row.aid).toBe('Yes — Travel / airfare, Accommodation');
   });
 
-  it('exposes flags for the counts above the table', () => {
-    const r = toRow(receipt({ needsVisa: 'yes', needsVisaLetter: 'yes', needsFinancialAid: 'yes' }));
-    expect(r._needsLetter).toBe(true);
-    expect(r._needsAid).toBe(true);
-  });
-
   it('never renders undefined for a missing answer', () => {
     const row = toRow({ reference: 'X', submittedAt: null, answers: {} });
-    Object.entries(row)
-      .filter(([k]) => !k.startsWith('_'))
-      .forEach(([, v]) => {
-        expect(v).not.toBeUndefined();
-        expect(String(v)).not.toMatch(/undefined/);
-      });
+    Object.values(row).forEach((v) => {
+      expect(v).not.toBeUndefined();
+      expect(String(v)).not.toMatch(/undefined/);
+    });
   });
 });
 

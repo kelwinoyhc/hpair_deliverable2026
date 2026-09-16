@@ -907,6 +907,12 @@ select.form-input {
   font-weight: 600;
 }
 
+.confirmation-warning {
+  text-align: left;
+  max-width: 52ch;
+  margin: 0 auto 20px;
+}
+
 .confirmation-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1076,6 +1082,48 @@ select.form-input {
 .admin-footnote a {
   color: var(--crimson);
   font-weight: 500;
+}
+
+.admin-checking {
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 14px;
+  padding: 28px 0;
+}
+
+/* Signed-in bar above the table. */
+.admin-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 9px 13px;
+  margin-bottom: 20px;
+  background: var(--crimson-wash);
+  border: 1px solid var(--crimson-line);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--crimson-deep);
+}
+
+.admin-session .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Where the rows came from: the database, or this browser. */
+.admin-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-sub svg {
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
 }
 
 /* --- Admin: submissions list --- */

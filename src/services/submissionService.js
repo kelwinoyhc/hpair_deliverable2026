@@ -5,22 +5,26 @@
  * `submitApplication` function. It returns a settled result object rather than
  * throwing, so callers render states instead of handling exceptions.
  *
- * There is no server here, and that is a deliberate choice: the starter repo
- * shipped Firebase credentials for a project shared by every applicant, whose
- * read query returned all submissions and filtered by user in the browser. Rather
- * than write real personal data into it, the transport is simulated and the shape
- * of this module matches what a real one would be -- swapping in `fetch`,
- * Firestore, or a Vercel serverless route means editing only `submitApplication`.
+ * Persistence lives in `submissionStore`, which writes to Supabase when it is
+ * configured and to localStorage either way. This module owns the *lifecycle* --
+ * latency, the receipt, what counts as success -- and nothing else.
  *
- * Trade-off, stated plainly: submissions do not persist server-side. The receipt
- * is kept in sessionStorage -- not localStorage -- so a refresh on the
- * confirmation screen still shows it, but someone returning next week lands on a
- * fresh form rather than a stale "you already submitted" screen.
+ * The starter repo's Firebase layer was removed rather than reused: it shipped
+ * credentials for a project shared by every applicant, and its read query
+ * returned all submissions and filtered by user in the browser. The replacement
+ * enforces access in Postgres instead; see supabase/schema.sql.
+ *
+ * The receipt is kept in sessionStorage -- not localStorage -- so a refresh on
+ * the confirmation screen still shows it, but someone returning next week lands
+ * on a fresh form rather than a stale "you already submitted" screen.
  */
 
 import { addSubmission } from './submissionStore';
+import { isSupabaseConfigured } from './supabaseClient';
 
-const LATENCY_MS = 900;
+// Kept only for the no-backend case, where an instant success looks like nothing
+// happened. With Supabase configured the real round trip supplies the latency.
+const SIMULATED_LATENCY_MS = 900;
 const RECEIPTS_KEY = 'hpair-form:last-receipt';
 
 /**
@@ -48,7 +52,9 @@ function describeAttachment(file) {
 }
 
 export async function submitApplication(values) {
-  await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
+  if (!isSupabaseConfigured) {
+    await new Promise((resolve) => setTimeout(resolve, SIMULATED_LATENCY_MS));
+  }
 
   if (shouldSimulateFailure(values)) {
     return {
@@ -65,11 +71,15 @@ export async function submitApplication(values) {
     attachment: describeAttachment(cv),
   };
 
-  saveReceipt(receipt);
-  // Also appended to the archive the admin view reads. Kept separate from the
-  // receipt: the receipt is this tab's confirmation, the archive is the record.
-  addSubmission(receipt);
-  return { ok: true, receipt };
+  // The archive write is awaited, but a remote failure does not fail the
+  // submission. Losing an applicant's answers because the database was asleep is
+  // worse than accepting them and saying they are not yet delivered -- which is
+  // what `pendingSync` on the receipt tells the confirmation screen to show.
+  const { remote, error } = await addSubmission(receipt);
+  const finalReceipt = { ...receipt, delivered: remote, deliveryError: error };
+
+  saveReceipt(finalReceipt);
+  return { ok: true, receipt: finalReceipt };
 }
 
 // --- Receipt persistence: sessionStorage, so it lives exactly as long as the tab ---

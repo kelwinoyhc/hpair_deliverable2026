@@ -50,9 +50,6 @@ export function toRow(receipt) {
           timeStyle: 'short',
         })
       : '—',
-    // Flags used for the counts above the table, not rendered as columns.
-    _needsLetter: a.needsVisa === 'yes' && a.needsVisaLetter === 'yes',
-    _needsAid: a.needsFinancialAid === 'yes',
   };
 }
 

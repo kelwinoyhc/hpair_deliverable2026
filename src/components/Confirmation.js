@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { FiCheckCircle, FiDownload } from 'react-icons/fi';
+import { FiCheckCircle, FiDownload, FiAlertTriangle } from 'react-icons/fi';
 import { buildSummary, buildDownloadPayload } from '../utils/summary';
 
 /**
@@ -47,9 +47,24 @@ export default function Confirmation({ receipt, onStartAnother }) {
         Your application is submitted
       </h2>
       <p className="confirmation-lede">
-        Thanks, {receipt.answers.firstName}. We&apos;ve recorded your details and sent nothing
-        anywhere you didn&apos;t ask us to.
+        Thanks, {receipt.answers.firstName}. We&apos;ve recorded your details.
       </p>
+
+      {/*
+        A submission that never reached the database is still accepted -- losing
+        someone's answers to a network failure is the worse outcome -- but saying
+        "submitted" with no qualification would be a lie. This says what actually
+        happened and what to do about it.
+      */}
+      {receipt.delivered === false && (
+        <div className="submit-message error confirmation-warning" role="alert">
+          <FiAlertTriangle aria-hidden="true" />
+          <span>
+            Your answers are saved in this browser but could not be delivered to us yet. Please
+            download a copy below and email it to us, or submit again later.
+          </span>
+        </div>
+      )}
 
       <dl className="receipt">
         <div className="receipt-row">

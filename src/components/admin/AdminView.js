@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { FiDownload, FiTrash2, FiRefreshCw, FiInbox } from 'react-icons/fi';
-import { listSubmissions, clearSubmissions } from '../../services/submissionStore';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { FiDownload, FiRefreshCw, FiInbox, FiAlertTriangle, FiDatabase, FiHardDrive } from 'react-icons/fi';
+import { listSubmissions, getStats, isSupabaseConfigured } from '../../services/submissionStore';
 import { COLUMNS, toRow, toCsv } from '../../utils/adminRows';
 import { buildSummary } from '../../utils/summary';
 
@@ -13,27 +13,36 @@ import { buildSummary } from '../../utils/summary';
  * table because "how many letters do we owe?" is the question you open this to
  * answer, and counting rows by eye is how that gets wrong.
  *
- * The data is whatever is in this browser's localStorage. See submissionStore.js.
+ * The counts come from `getStats`, which asks Postgres to count rather than
+ * downloading every application to count them here -- see submissionStore.js.
+ * That is why they are fetched separately from the rows instead of derived from
+ * them: the number and the page of rows answer different questions.
  */
 export default function AdminView() {
-  const [receipts, setReceipts] = useState(() => listSubmissions());
+  const [receipts, setReceipts] = useState([]);
+  const [stats, setStats] = useState({ total: 0, letters: 0, aid: 0, remote: false });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [remote, setRemote] = useState(false);
   const [expanded, setExpanded] = useState(null);
 
-  const rows = useMemo(() => receipts.map((r) => ({ receipt: r, row: toRow(r) })), [receipts]);
-
-  const stats = useMemo(
-    () => ({
-      total: rows.length,
-      letters: rows.filter(({ row }) => row._needsLetter).length,
-      aid: rows.filter(({ row }) => row._needsAid).length,
-    }),
-    [rows]
-  );
-
-  const refresh = () => {
-    setReceipts(listSubmissions());
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [listed, counted] = await Promise.all([listSubmissions(), getStats()]);
+    setReceipts(listed.rows);
+    setStats(counted);
+    setRemote(listed.remote);
+    setError(listed.error || counted.error || null);
+    setLoading(false);
     setExpanded(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const rows = useMemo(() => receipts.map((r) => ({ receipt: r, row: toRow(r) })), [receipts]);
 
   const exportCsv = () => {
     const blob = new Blob([toCsv(receipts)], { type: 'text/csv;charset=utf-8' });
@@ -47,25 +56,27 @@ export default function AdminView() {
     URL.revokeObjectURL(url);
   };
 
-  const clearAll = () => {
-    // eslint-disable-next-line no-alert
-    const ok = window.confirm(
-      `Delete all ${rows.length} stored submission(s)? This cannot be undone.`
-    );
-    if (!ok) return;
-    clearSubmissions();
-    refresh();
-  };
 
   return (
     <div className="admin">
       <div className="admin-head">
         <div>
           <h2>Submissions</h2>
-          <p className="admin-sub">Applications submitted in this browser.</p>
+          <p className="admin-sub">
+            {remote ? (
+              <>
+                <FiDatabase aria-hidden="true" /> Live from the database.
+              </>
+            ) : (
+              <>
+                <FiHardDrive aria-hidden="true" /> This browser only
+                {isSupabaseConfigured ? ' — the database is unreachable.' : ' — no database configured.'}
+              </>
+            )}
+          </p>
         </div>
         <div className="admin-actions">
-          <button type="button" className="btn btn-secondary" onClick={refresh}>
+          <button type="button" className="btn btn-secondary" onClick={load} disabled={loading}>
             <FiRefreshCw aria-hidden="true" /> Refresh
           </button>
           <button
@@ -75,14 +86,6 @@ export default function AdminView() {
             disabled={!rows.length}
           >
             <FiDownload aria-hidden="true" /> Export CSV
-          </button>
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={clearAll}
-            disabled={!rows.length}
-          >
-            <FiTrash2 aria-hidden="true" /> Clear
           </button>
         </div>
       </div>
@@ -102,13 +105,22 @@ export default function AdminView() {
         </div>
       </dl>
 
-      {!rows.length ? (
+      {error && (
+        <div className="submit-message error" role="alert">
+          <FiAlertTriangle aria-hidden="true" />
+          <span>
+            {error} Showing whatever is stored in this browser instead.
+          </span>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="admin-checking">Loading submissions…</p>
+      ) : !rows.length ? (
         <div className="admin-empty">
           <FiInbox aria-hidden="true" />
-          <p>No submissions in this browser yet.</p>
-          <p className="admin-empty-hint">
-            Submit the form once and it will appear here.
-          </p>
+          <p>No submissions yet.</p>
+          <p className="admin-empty-hint">Submit the form once and it will appear here.</p>
         </div>
       ) : (
         <>
@@ -187,8 +199,10 @@ export default function AdminView() {
       )}
 
       <p className="admin-footnote">
-        These rows live in this browser only — a different device shows an empty
-        table. <a href="#top">Back to the form</a>
+        {remote
+          ? 'Reads are permitted by a database policy, not by this page — signing out does not hide rows from someone who was already allowed to see them.'
+          : 'These rows are stored in this browser only.'}{' '}
+        <a href="#top">Back to the form</a>
       </p>
     </div>
   );

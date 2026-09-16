@@ -50,22 +50,87 @@ So writing real personal data there was not an option. The alternatives were:
 
 | Option | Why not chosen |
 | --- | --- |
-| Use the shipped Firebase project | Writes personal data to a database other applicants can read, and the deployed demo depends on a project I don't control staying as it is. |
-| Create a private Firebase project | Sound, and the natural next step. Rejected here because it puts the demo behind console configuration (enabling a provider, publishing rules) that a reviewer cannot see or verify from the repo. |
-| **No backend; one submission module** | **Chosen.** Nothing to configure, the deploy cannot break because of someone else's settings, and no personal data leaves the browser. |
+| Use the shipped Firebase project | Writes personal data to a database other applicants can read, and the demo depends on a project I don't control staying as it is. |
+| Firebase, private project | Viable. Passed over for Supabase: Postgres with Row Level Security expresses the fix to the bug above more directly, and RLS policies are ordinary SQL rather than a proprietary rules language. |
+| **Supabase (Postgres + RLS)** | **Chosen.** See below. |
 
-The cost is real and is not hidden: **submissions do not persist server-side.**
-What makes that acceptable rather than a dodge is that the seam is explicit —
-`src/services/submissionService.js` is the only module that knows submission
-exists, and it returns the same result shape a real transport would:
+### The replacement, and what it fixes
 
-```js
-const result = await submitApplication(values);
-if (result.ok) { /* result.receipt */ } else { /* result.error */ }
+Submissions go to a Supabase table whose access is decided by Postgres, not by
+the front-end:
+
+```sql
+-- anyone may apply, including signed-out visitors
+create policy "anyone may submit an application" on public.submissions
+  for insert to anon, authenticated
+  with check (
+    length(reference) between 5 and 64
+    and jsonb_typeof(answers) = 'object'
+    and length(answers::text) < 20000
+  );
+
+-- only the admin may read; everyone else matches zero rows
+create policy "only the admin may read submissions" on public.submissions
+  for select to authenticated
+  using (auth.jwt() ->> 'email' = 'admin@example.com');
 ```
 
-Replacing the simulated call with `fetch`, Firestore, or a Vercel serverless
-route is a change to one function. No component knows the difference.
+This is the direct answer to the starter's bug. There, the query returned every
+applicant's row and the browser filtered it — so the data was in the network tab
+regardless of what the UI drew. Here the client *cannot* obtain another
+applicant's row however it is modified, because the database refuses it. A filter
+in the client is presentation; a policy here is enforcement.
+
+No update or delete policy exists, so applications cannot be edited or removed
+from the browser at all. The admin UI therefore offers no delete button — a test
+asserts it doesn't, because a UI that offers an action the database will refuse
+is worse than one that doesn't offer it.
+
+**The anon key is public and that is fine.** `REACT_APP_*` values are inlined into
+the bundle at build time, and Supabase's anon key is designed to ship to browsers:
+it identifies the project, it does not authorise anything. All of the protection
+is in the policies. That is precisely the property the starter repo lacked — it
+had credentials *and* a login, and still leaked everything.
+
+### Counting in the database, not the browser
+
+Three columns are generated from the jsonb and stored:
+
+```sql
+country             text    generated always as (answers ->> 'country') stored,
+needs_visa_letter   boolean generated always as (
+  (answers ->> 'needsVisa') = 'yes' and (answers ->> 'needsVisaLetter') = 'yes') stored,
+needs_financial_aid boolean generated always as (
+  (answers ->> 'needsFinancialAid') = 'yes') stored
+```
+
+That lets the admin counts run as `select count(*) ... head: true` — Postgres
+returns a number in a header and no rows at all — instead of downloading every
+application to run `.filter().length` in JavaScript. They are `stored`, so they
+cost write time once rather than read time forever, and they cannot drift from
+the jsonb because Postgres derives them.
+
+**Why jsonb rather than a column per field:** the form's shape is still changing,
+and a document means adding a question is a front-end change rather than a
+migration. The trade-off is that Postgres cannot type-check the contents, which is
+why the insert policy constrains the shape and size, and why the Yup schema
+remains the real gate.
+
+### Two tiers, and the cost
+
+`submissionStore.js` writes to Supabase *and* to localStorage. The local copy is
+not a speed cache — it is why the app runs at all without credentials (a fresh
+clone, and the entire test suite), and why a network failure mid-submission does
+not discard someone's answers. A submission that only reached localStorage is
+flagged, and the confirmation screen says it has not been delivered rather than
+implying a success that did not happen.
+
+**The cost, stated:** `@supabase/supabase-js` is about 60 kB gzipped, which took
+the bundle from 101 kB to 161 kB. For a form that submits once, that is a lot of
+JavaScript to ship. The alternative was hand-rolling `fetch` calls against
+PostgREST and the auth endpoints, which would have been perhaps 80 lines and no
+dependency — worth doing if bundle size mattered more than it does here, and worth
+saying out loud rather than pretending the dependency was free.
 
 ---
 
@@ -459,10 +524,10 @@ Six tests cover it.
 
 Stated rather than discovered later:
 
-1. **No server-side persistence.** §1. The seam is one function.
-2. **The uploaded file is never transmitted.** Its name, size, and type are
-   recorded; contents are not read. A real implementation needs multipart upload
-   or a signed URL.
+1. **The CV file is still not uploaded.** Supabase Storage would hold it; only
+   metadata is stored today.
+2. **Submissions cannot be edited or withdrawn.** There is no update or delete
+   policy, deliberately, but a real system needs an audited way to do both.
 3. **No email delivery.** The brief lists it as a bonus; it needs a backend to be
    anything other than theatre. Not faked.
 4. **Client-side validation only.** Fine for UX, never sufficient for trust — any
@@ -472,10 +537,9 @@ Stated rather than discovered later:
    `Intl.DisplayNames` and ISO codes are the groundwork, not the feature.
 6. **A draft is per-browser**, not per-user; on a shared machine the next person
    sees it. Real accounts would fix this, at the cost of §1.
-7. **The admin view only ever shows submissions made in the same browser.** A
-   different laptop shows an empty table. It demonstrates the interface, not a
-   working admissions workflow — see §7.
-8. **The admin passcode is public** by construction. §7.
+7. **The admin is a single email compared in a policy.** Fine for one
+   administrator; a real system wants a role table or a custom claim.
+8. **Bundle cost.** ~60 kB gzipped for the Supabase client. §1.
 
 ---
 

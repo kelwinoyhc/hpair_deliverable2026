@@ -27,19 +27,21 @@ the answer, that file is your homework.
 When they say *"walk me through what you built"*:
 
 > It's a four-step — five with review — delegate application form. React with
-> Formik for form state and Yup for validation, deployed static on Vercel.
+> Formik for form state and Yup for validation, Supabase for persistence,
+> deployed on Vercel.
 >
 > Three things I'd point at. First, validation lives in its own module, one schema
 > per step, so the rules are testable without rendering React and the wizard can
-> validate only the fields on screen. Second, submission sits behind a single
-> service function, because the starter repo shipped Firebase credentials for a
-> project shared by every applicant whose read query returned everyone's
-> submissions and filtered by user in the browser — so I didn't write real
-> personal data into it. Third, there's an admin view behind a passcode, and that
-> passcode is explicitly not security — it's checked in the browser, so it ships
-> in the bundle. I documented why rather than pretending otherwise.
+> validate only the fields on screen. Second, the starter shipped Firebase
+> credentials for a project shared by every applicant, and its read query returned
+> everyone's submissions and filtered by user in the browser — so I replaced it
+> with Postgres and Row Level Security, where the database refuses the row rather
+> than the front-end declining to draw it. Third, the admin counts run as
+> `count(*)` in Postgres against generated columns, so "how many invitation
+> letters do we owe" is one small request instead of downloading every application
+> to count them in JavaScript.
 >
-> 108 tests. Two of them exist because they caught bugs in my own validation
+> 107 tests. Two of them exist because they caught bugs in my own validation
 > messages.
 
 Then stop and let them pick a thread. Don't recite the rest.
@@ -137,15 +139,20 @@ User presses Submit (review step)
    -> success? submitApplication(values)
          -> 900ms simulated latency
          -> builds a receipt: reference, timestamp, answers, attachment metadata
+         -> addSubmission() -> Supabase insert, AND localStorage
+              remote write failed? receipt is flagged undelivered and the
+              confirmation says so, rather than implying success
          -> saveReceipt()   -> sessionStorage  (this tab's confirmation)
-         -> addSubmission() -> localStorage    (the admin view's archive)
    -> clearDraft(), render Confirmation, move focus to its heading
 ```
 
 Two details worth knowing cold:
 
 - **The File never leaves the browser.** Only its name, size and MIME type are
-  recorded. A real implementation needs multipart upload or a signed URL.
+  recorded. Supabase Storage would hold the actual PDF; that's the next step.
+- **Writes go to both tiers.** Supabase is the record; localStorage exists so the
+  app runs without credentials (a fresh clone, and the whole test suite) and so a
+  network failure doesn't discard someone's answers.
 - **Receipt is `sessionStorage`; draft is `localStorage`.** Deliberate: a refresh
   on the confirmation screen should still show it, but someone returning next week
   should land on a fresh form, not a stale "you already submitted" screen.
@@ -176,14 +183,27 @@ const userSubmissions = submissionsResult.data.filter((s) => s.userId === userId
 response — other applicants' addresses and phone numbers — was in the network tab
 for any registered user to read.
 
-**What I did.** Didn't write personal data there. `submitApplication()` in
-`services/submissionService.js` is the only thing that knows submission exists,
-and it returns the shape a real transport would: `{ ok, receipt }` or
-`{ ok: false, error }`. Swapping in `fetch`, Firestore, or a Vercel route is one
-function.
+**What I did.** Replaced it with Supabase, where the decision lives in Postgres:
 
-**The cost, stated:** no server-side persistence. Say this plainly — don't let
-them discover it.
+```sql
+create policy "only the admin may read submissions" on public.submissions
+  for select to authenticated
+  using (auth.jwt() ->> 'email' = 'admin@example.com');
+```
+
+Now the client *cannot* obtain another applicant's row however it's modified,
+because the database refuses it. **A filter in the client is presentation; a
+policy in the database is enforcement.** That sentence is the single most useful
+thing in this file.
+
+**Follow-up you should expect: "isn't the anon key in your bundle?"**
+Yes, and that's by design — it identifies the project, it doesn't authorise
+anything. All the protection is in the policies. Which is exactly what the starter
+lacked: it had credentials *and* a login and still leaked everything.
+
+**The cost, stated:** `@supabase/supabase-js` is ~60 kB gzipped and took the
+bundle from 101 kB to 161 kB. I could have hand-rolled `fetch` against PostgREST
+in ~80 lines with no dependency. Say that before they say it.
 
 ### 4.2 A wizard, not one long page
 
@@ -237,36 +257,31 @@ step's fields as touched" and "jump to the step owning the first bad field" both
 work.
 
 Keeping it out of the components means the rules test in ~2 seconds with no
-rendering. That's why 34 of the 108 tests are pure schema tests.
+rendering. That's why 34 of the 107 tests are pure schema tests.
 
-### 4.7 The admin login is not security — and that's the point
+### 4.7 The admin view, and where its security actually lives
 
-`/#admin`, passcode from `REACT_APP_ADMIN_PASSCODE`, default `hpair-admin`.
+`/#admin`. Sign in with Supabase Auth using the admin email.
 
-**Be first to say it doesn't work.** The passcode is compared in the browser, so
-CRA inlines it into the bundle — readable in DevTools. And the data is in
-`localStorage`, so anyone can read it without touching the gate at all. Nothing a
-browser checks can be trusted, because the browser belongs to the person being
-checked.
+**The point to make:** the sign-in form is not what protects the data. Delete
+`AdminGate.js` entirely and not one row becomes readable, because the RLS policy
+matches no rows for a non-admin JWT. The component is a convenience for the
+admin, not a barrier for anyone else.
 
-That is *the same bug* as §4.1: the starter had a login and still leaked
-everything, because the decision happened client-side.
+Ask yourself the question they'll ask: *"what happens if I open DevTools and call
+`supabase.from('submissions').select()` myself?"* Answer: you get an empty array.
+Not an error — a policy shouldn't confirm that rows exist to someone who can't
+read them.
 
-Two things follow: the warning is **in the UI**, not just a comment, and a test
-asserts it's still there. And `.env.example` states that `REACT_APP_*` values are
-public.
+**There's still a fallback passcode**, used only when no Supabase project is
+configured, so a fresh clone runs. That mode says on screen that it isn't
+security, and a test asserts the warning is still there. Be able to explain why
+both modes exist: the app must not require secrets to run locally.
 
-**The real version** puts the decision where the data is:
-
-```js
-match /submissions/{id} {
-  allow create: if true;                             // anyone may apply
-  allow read:   if request.auth.token.admin == true; // only admins may read
-}
-```
-
-Server-enforced — the client *cannot* read other rows however it's modified.
-That's the difference between a rule and a suggestion.
+**Also worth knowing:** there's no update or delete policy, so applications can't
+be edited or removed from the browser at all. The UI offers no delete button, and
+a test asserts it doesn't — a UI that offers an action the database will refuse is
+worse than one that doesn't offer it.
 
 ---
 
@@ -477,8 +492,10 @@ judgement; being caught by them reads as not knowing your own code.**
 
 | They ask | Say |
 | --- | --- |
-| "Is the data saved anywhere?" | No. There's no server — by choice, because the shipped Firebase was shared and leaked. Submissions go to `localStorage` so the admin view can demo, and the seam is one function. |
-| "So the admin login is real security?" | No. It's checked in the browser and ships in the bundle, and the data is readable straight out of `localStorage`. It's a demo gate; the warning is in the UI. Real access control means Firestore rules. |
+| "Is the data saved anywhere?" | Yes — a Supabase Postgres table. Reads are restricted by an RLS policy, not by the front-end. |
+| "Your anon key is in the bundle." | By design. It identifies the project; it authorises nothing. The protection is the policy. If RLS were off, the key alone would read the table — which is why the schema file ends with a query to verify RLS is on. |
+| "What stops an applicant reading other applications?" | Postgres. The select policy matches only the admin's JWT email, so anyone else gets zero rows — including from the console. |
+| "60 kB for a client library on a form?" | Fair. Hand-rolled `fetch` against PostgREST would be ~80 lines and no dependency. I took the library for auth session handling; I'd revisit it if bundle size mattered. |
 | "Can you email the response?" | Not without a backend, so I didn't fake it. It's listed as a known limitation. |
 | "Does the CV get uploaded?" | No — name, size and type are recorded; contents are never read. A real version needs multipart upload or a signed URL. |
 | "It asks for preferred language, then ignores it." | Correct. `Intl.DisplayNames` and ISO codes are the groundwork for i18n, not the feature. Listed as a limitation. |
@@ -502,10 +519,14 @@ In priority order. Read the file, then re-answer the drills without the answers.
 3. **`src/utils/phonePrefill.js`** (47) — short, and the `isBareDialCode` reasoning
    is the kind of detail that impresses.
 4. **`src/components/FormFields.js`** (281) — where all the accessibility lives.
-5. **`src/utils/adminRows.js`** (88) — the CSV injection guard.
-6. **`DESIGN.md`** — the long-form version of §4, with the rejected alternatives.
+5. **`supabase/schema.sql`** — the RLS policies and the generated columns. Short,
+   and the highest ratio of interview value to reading time in the repo.
+6. **`src/services/submissionStore.js`** — the two tiers, and `getStats` counting
+   in Postgres with `head: true`.
+7. **`src/utils/adminRows.js`** (88) — the CSV injection guard.
+8. **`DESIGN.md`** — the long-form version of §4, with the rejected alternatives.
 
-Then run this and watch it go green, so you know what 108 passing tests means:
+Then run this and watch it go green, so you know what 107 passing tests means:
 
 ```bash
 npm test -- --watchAll=false
