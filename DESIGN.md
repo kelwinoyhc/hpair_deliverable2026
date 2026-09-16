@@ -457,52 +457,51 @@ unguarded `scrollIntoView` that would have thrown on any browser lacking it.
 
 ---
 
-## 7. The admin view, and why its login is not security
+## 7. The admin view, and where its security actually lives
 
-Reachable at **`/#admin`**. Passcode from `REACT_APP_ADMIN_PASSCODE`, defaulting
-to `hpair-admin`.
+Reachable at **`/#admin`**. Sign in with Supabase Auth using the admin account.
 
-It lists submissions as rows — name, country, nationality, language, English
-level, visa status, financial aid — with three counts above the table
-(applications, invitation letters to issue, aid requests), an expandable detail
-row per application, and a CSV export.
+It lists submissions as rows — name, email, country, nationality, language,
+English level, visa status, financial aid — with three counts above the table, an
+expandable detail row per application, and a CSV export.
 
-### The uncomfortable part, stated plainly
+### The claim to be precise about
 
-**This login is not access control, and cannot be.** The passcode is compared in
-the browser, so it ships inside the JavaScript bundle and is readable in DevTools.
-Even with a perfect passcode, the data sits in `localStorage`, which any visitor
-can read directly without going near this component. Nothing a browser checks can
-be trusted, because the browser belongs to the person being checked.
+**The sign-in form is not what protects the data.** Delete `AdminGate.js`
+entirely and not one row becomes readable, because the select policy matches no
+rows for a non-admin JWT. Open the console on the deployed site and run
+`supabase.from('submissions').select()` yourself and you get an empty array — not
+an error, because a policy should not confirm that rows exist to someone who may
+not read them.
 
-This is exactly the bug this project found in the starter repo (§1): it *had* a
-login, and still exposed every applicant's submission, because the narrowing to
-one user happened client-side. A login in front of client-side data is decoration.
+That is the whole difference from the starter repo (§1), which had credentials
+*and* a login and still exposed every applicant's submission, because the
+narrowing to one user happened in the browser. **A filter in the client is
+presentation. A policy in the database is enforcement.**
 
-Two things follow from taking that seriously:
+### The fallback mode, and why it exists
 
-- The warning is **in the UI**, not just in a comment, and a test asserts it is
-  still there. If it is ever deleted, someone will eventually mistake this for
-  security.
-- `.env.example` states that `REACT_APP_*` variables are public and that a real
-  credential must never be put in one.
+With no Supabase project configured, the gate falls back to a passcode compared in
+the browser — which is *not* access control: the value ships in the bundle, and the
+local rows are readable straight out of `localStorage`.
 
-### What the real version looks like
+That mode exists so the app runs for anyone who clones the repo without
+credentials, including the entire test suite. It says so on screen, and a test
+asserts the warning is still present — if it were ever deleted, someone would
+eventually mistake it for security.
 
-Access control has to live where the data lives:
+`.env.example` states that `REACT_APP_*` variables are public and that the
+`service_role` key must never be put in one, since it bypasses RLS entirely.
 
-```js
-// Firestore rules — enforced on the server, not requestable around
-match /submissions/{id} {
-  allow create: if true;                                  // anyone may apply
-  allow read:   if request.auth.token.admin == true;       // only admins may read
-}
-```
+### No edits, no deletions
 
-Plus Firebase Auth for the login and a custom claim for `admin`. The client then
-*cannot* read other applicants' rows, however it is modified — which is the
-difference between a rule and a suggestion. `services/submissionStore.js` is the
-only module that would change.
+There is no update or delete policy, so an application cannot be modified or
+removed from the browser at all. The UI offers no delete button and a test asserts
+it doesn't: a UI that offers an action the database will refuse is worse than one
+that doesn't offer it.
+
+The limitation that creates is real and is listed in §8 — a live system needs an
+audited way to withdraw or correct a submission.
 
 ### Why a hash route rather than react-router
 
@@ -548,7 +547,7 @@ Stated rather than discovered later:
 ```bash
 npm install
 npm start                          # dev server
-npm test -- --watchAll=false       # 50 tests
+npm test -- --watchAll=false       # 107 tests
 CI=true npm run build              # exactly what Vercel runs
 ```
 
@@ -556,11 +555,49 @@ CI=true npm run build              # exactly what Vercel runs
 failures. An unused import passes locally and fails the deploy, so verify with the
 flag before pushing.
 
-**Demoing the error state:** submit with an email beginning `fail@` and the
-service returns a failure. Deterministic on purpose — a random failure is
-indistinguishable from a bug to whoever is reviewing it.
+It runs **without** any configuration — submissions fall back to localStorage and
+the admin view says so. That is deliberate: needing secrets to start a dev server
+is a bad property for a project anyone might clone.
+
+### Connecting Supabase
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. **SQL Editor → New query** → paste all of `supabase/schema.sql` → **Run**.
+   Before running, replace `ADMIN_EMAIL_HERE` with the email you will sign in as.
+3. **Authentication → Users → Add user** → that same email, and a password. Tick
+   *Auto Confirm User*, or the account cannot sign in.
+4. **Project Settings → API** → copy the **Project URL** and the **anon public**
+   key.
+5. Locally: `cp .env.example .env.local` and paste both values.
+6. On Vercel: **Project → Settings → Environment Variables**, add
+   `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY`, then redeploy —
+   CRA inlines these at *build* time, so an existing deployment will not pick them
+   up until it is rebuilt.
+
+Verify RLS is actually on, because nothing else protects the table:
+
+```sql
+select relname, relrowsecurity from pg_class where relname = 'submissions';
+select policyname, cmd, roles from pg_policies where tablename = 'submissions';
+```
+
+`relrowsecurity` must be `true` and two policies must be listed.
+
+### Demoing the states
+
+- **Success:** submit normally; the confirmation shows a reference code.
+- **Submission failure:** use an email beginning `fail@`. Deterministic on
+  purpose — a random failure is indistinguishable from a bug to a reviewer.
+- **Undelivered:** stop the Supabase project (or go offline) and submit. The
+  application is accepted, stored locally, and the confirmation says it has not
+  been delivered.
+- **Access control:** sign in to `/#admin` as the admin and see rows. Then open
+  the browser console on the form page and run
+  `supabase.from('submissions').select()` as an anonymous visitor — it returns an
+  empty array, because the policy matches no rows.
 
 ### Deployment
-Static CRA build, no environment variables, no serverless functions, no
-`vercel.json`. Vercel detects Create React App, runs `npm run build`, serves
-`build/`. Nothing to configure, which is the point.
+
+Static CRA build, no serverless functions, no `vercel.json`. Vercel detects Create
+React App, runs `npm run build`, serves `build/`. The only configuration is the two
+environment variables above.

@@ -137,7 +137,7 @@ User presses Submit (review step)
    -> fullSchema.validate(values) — the whole form, as a final gate
    -> failure? jump back to the step owning the first bad field
    -> success? submitApplication(values)
-         -> 900ms simulated latency
+         -> (simulated 900ms only when no Supabase project is configured)
          -> builds a receipt: reference, timestamp, answers, attachment metadata
          -> addSubmission() -> Supabase insert, AND localStorage
               remote write failed? receipt is flagged undelivered and the
@@ -161,7 +161,7 @@ Two details worth knowing cold:
 
 ## 4. The seven decisions you must be able to defend
 
-### 4.1 No backend, and submission behind one module
+### 4.1 Replacing the starter's Firebase with Postgres + RLS
 
 **The situation.** The starter committed real Firebase credentials for project
 `hpair-deliv-6443a`, shipped to every applicant who forked the repo. Reading
