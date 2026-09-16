@@ -6,8 +6,8 @@ A multi-step delegate application form built for the HPAIR deliverable.
 
 | | |
 | --- | --- |
-| **Registration form portal** | https://hpair-deliverable2026.vercel.app |
-| **Admin portal** | https://hpair-deliverable2026.vercel.app/#admin |
+| **Registration form portal** | https://hpair-deliverable2026-alpha.vercel.app |
+| **Admin portal** | https://hpair-deliverable2026-alpha.vercel.app/#admin |
 
 ### Admin portal credentials
 
