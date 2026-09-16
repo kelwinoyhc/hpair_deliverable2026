@@ -1296,3 +1296,180 @@ select.form-input {
     font-size: 21px;
   }
 }
+
+/* --- Print: the confirmation screen as a PDF -----------------------------
+ *
+ * "Save as PDF" in the browser's print dialog runs this. It exists instead of a
+ * PDF library: jspdf is ~129 kB gzipped, which would nearly double the bundle so
+ * that one screen could lay out a table of label/value pairs. CSS does it for
+ * nothing, and produces a better document.
+ *
+ * Only the confirmation is designed to print. Printing mid-form is not a use
+ * case, and a half-filled wizard makes a poor document.
+ */
+@media print {
+  /* Ink and paper: the crimson masthead would waste a cartridge and the warm
+     canvas prints as a grey wash. */
+  :root {
+    --canvas: #ffffff;
+    --surface: #ffffff;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+  }
+
+  /* Chrome that means nothing on paper. */
+  .App-header,
+  .page-title,
+  .skip-link,
+  .footnote,
+  .confirmation-actions,
+  .admin-actions,
+  .admin-session,
+  .step-indicator,
+  .form-actions,
+  .notice {
+    display: none !important;
+  }
+
+  .container,
+  .form-container {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  /* A printed record needs to say what it is; the page heading was dropped
+     above, so the document supplies its own title. */
+  .confirmation::before {
+    content: 'HPAIR — Delegate application summary';
+    display: block;
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-bottom: 1.5pt solid #000;
+    padding-bottom: 6pt;
+    margin-bottom: 14pt;
+  }
+
+  .confirmation {
+    text-align: left;
+  }
+
+  .confirmation-icon {
+    display: none;
+  }
+
+  .confirmation-title {
+    font-size: 14pt;
+    margin-bottom: 4pt;
+  }
+
+  .confirmation-lede {
+    max-width: none;
+    margin: 0 0 12pt;
+    font-size: 10.5pt;
+  }
+
+  .receipt {
+    display: block;
+    border: 1pt solid #000;
+    border-radius: 0;
+    padding: 8pt 10pt;
+    margin-bottom: 14pt;
+  }
+
+  /* The answers live in a <details>, which prints closed unless forced open --
+     that would give a PDF with a reference number and nothing else. */
+  .confirmation-details {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+  }
+
+  .confirmation-details > summary {
+    display: none;
+  }
+
+  .summary-section {
+    background: none;
+    border: none;
+    border-top: 0.5pt solid #666;
+    border-radius: 0;
+    padding: 8pt 0 0;
+    margin-bottom: 10pt;
+    /* Never split a section's heading from its first rows. */
+    break-inside: avoid;
+  }
+
+  .summary-title {
+    color: #000;
+    font-size: 9pt;
+  }
+
+  .summary-item {
+    border-bottom: none;
+    padding: 2pt 0;
+    font-size: 10pt;
+  }
+
+  .summary-label {
+    color: #000;
+    min-width: 40%;
+  }
+
+  /* Footer identifying the document, since a printed page has no URL bar. */
+  .confirmation-details::after {
+    content: 'Retain this summary for your records. Submitted via the HPAIR delegate application form.';
+    display: block;
+    margin-top: 14pt;
+    padding-top: 6pt;
+    border-top: 0.5pt solid #666;
+    font-size: 8.5pt;
+    color: #333;
+  }
+}
+
+/* --- Admin: stored CV link --- */
+
+.cv-link {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cv-link .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  text-align: left;
+}
+
+.cv-link .link-button:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cv-link-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+
+.cv-link-none {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.cv-link-none em {
+  font-style: normal;
+  opacity: 0.8;
+}

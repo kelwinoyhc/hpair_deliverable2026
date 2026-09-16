@@ -3,6 +3,7 @@ import { FiDownload, FiRefreshCw, FiInbox, FiAlertTriangle, FiDatabase, FiHardDr
 import { listSubmissions, getStats, isSupabaseConfigured } from '../../services/submissionStore';
 import { COLUMNS, toRow, toCsv } from '../../utils/adminRows';
 import { buildSummary } from '../../utils/summary';
+import CvLink from './CvLink';
 
 /**
  * Submissions list.
@@ -170,6 +171,10 @@ export default function AdminView() {
                         <tr id={`detail-${receipt.reference}`} className="admin-detail-row">
                           <td colSpan={COLUMNS.length + 1}>
                             <div className="admin-detail">
+                              <section>
+                                <h3 className="summary-title">CV</h3>
+                                <CvLink attachment={receipt.attachment} />
+                              </section>
                               {buildSummary(receipt.answers, {
                                 attachment: receipt.attachment,
                               }).map((section) => (

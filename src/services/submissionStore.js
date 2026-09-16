@@ -19,6 +19,12 @@ import { supabase, isSupabaseConfigured, SUBMISSIONS_TABLE } from './supabaseCli
 const LOCAL_KEY = 'hpair-form:submissions';
 const MAX_LOCAL_ROWS = 200;
 
+export const CV_BUCKET = 'cvs';
+
+// Long enough for an admin to click through and for a large file to start
+// downloading; short enough that a link pasted somewhere stops working quickly.
+const SIGNED_URL_TTL_SECONDS = 300;
+
 // --- Local tier -------------------------------------------------------------
 
 function readLocal() {
@@ -181,3 +187,74 @@ export async function getStats() {
 }
 
 export { isSupabaseConfigured };
+
+// --- CV files ---------------------------------------------------------------
+
+/**
+ * Makes a filename safe to use as a storage object key.
+ *
+ * Supabase object keys are URL path segments, so a name containing `/`, `?` or
+ * `#` would either break the path or silently create folders. Non-ASCII is
+ * stripped rather than encoded because an applicant's CV filename is not worth a
+ * round of percent-decoding on the way back out.
+ */
+export function safeObjectName(filename) {
+  const cleaned = String(filename || 'cv')
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/^[._-]+/, '')
+    .slice(0, 120);
+  return cleaned || 'cv';
+}
+
+/**
+ * Uploads the CV, keyed by the submission's reference.
+ *
+ * `upsert: false` so a repeated reference can never overwrite an existing
+ * applicant's file. The reference prefix also means the objects group per
+ * submission, which is what makes the admin's lookup a single known path rather
+ * than a search.
+ *
+ * A failure here does not fail the submission -- the row is still written, with
+ * the file's metadata but no storage path, and the admin sees "not stored"
+ * instead of a link. Losing the application because the file did not upload
+ * would be the worse outcome.
+ */
+export async function uploadCv(reference, file) {
+  if (!isSupabaseConfigured || !file) return { path: null, error: null };
+
+  const path = `${reference}/${safeObjectName(file.name)}`;
+
+  try {
+    const { error } = await supabase.storage
+      .from(CV_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false });
+
+    if (error) return { path: null, error: error.message };
+    return { path, error: null };
+  } catch (e) {
+    return { path: null, error: e?.message || 'Could not upload the file.' };
+  }
+}
+
+/**
+ * Mints a short-lived URL for one stored CV.
+ *
+ * The bucket is private, so there is no permanent URL to link to. Supabase will
+ * only sign an object the caller could have read, which means the select policy
+ * -- admin email only -- governs this too: an applicant cannot mint a link to
+ * anyone's CV, including their own.
+ */
+export async function getCvUrl(storagePath) {
+  if (!isSupabaseConfigured || !storagePath) return { url: null, error: null };
+
+  try {
+    const { data, error } = await supabase.storage
+      .from(CV_BUCKET)
+      .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
+
+    if (error) return { url: null, error: error.message };
+    return { url: data?.signedUrl || null, error: null };
+  } catch (e) {
+    return { url: null, error: e?.message || 'Could not create a link.' };
+  }
+}

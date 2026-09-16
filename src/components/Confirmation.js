@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { FiCheckCircle, FiDownload, FiAlertTriangle } from 'react-icons/fi';
+import React, { useEffect, useRef, useState } from 'react';
+import { FiCheckCircle, FiDownload, FiPrinter, FiAlertTriangle } from 'react-icons/fi';
 import { buildSummary, buildDownloadPayload } from '../utils/summary';
 
 /**
@@ -14,6 +14,7 @@ import { buildSummary, buildDownloadPayload } from '../utils/summary';
  */
 export default function Confirmation({ receipt, onStartAnother }) {
   const headingRef = useRef(null);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     if (headingRef.current) headingRef.current.focus();
@@ -33,6 +34,30 @@ export default function Confirmation({ receipt, onStartAnother }) {
     document.body.removeChild(anchor);
     // Without this the blob is held for the lifetime of the document.
     URL.revokeObjectURL(url);
+  };
+
+  /**
+   * Saving a PDF via the browser's own print pipeline rather than a library.
+   *
+   * `jspdf` would give a one-click download but costs ~129 kB gzipped -- close to
+   * doubling this app's bundle so that one button on one screen can lay out a
+   * table. The print stylesheet in index.css costs nothing, and every desktop
+   * and mobile browser's print dialog offers "Save as PDF", so the user still
+   * gets a PDF. It also produces a better document, because it is styled with
+   * CSS rather than hand-positioned in points.
+   *
+   * The trade-off, honestly: one extra step in the print dialog, and the filename
+   * is chosen by the browser rather than by us.
+   */
+  const printSummary = () => {
+    // The answers sit in a <details>. A closed <details> prints closed, so it is
+    // opened for the duration of the print and restored afterwards -- rather than
+    // being left open on screen, which would undo the collapsing on purpose.
+    setPrinting(true);
+    window.requestAnimationFrame(() => {
+      window.print();
+      setPrinting(false);
+    });
   };
 
   const submittedAt = new Date(receipt.submittedAt).toLocaleString('en-GB', {
@@ -80,15 +105,23 @@ export default function Confirmation({ receipt, onStartAnother }) {
       </dl>
 
       <div className="confirmation-actions">
-        <button type="button" className="btn btn-primary" onClick={download}>
-          <FiDownload aria-hidden="true" /> Download a copy
+        <button type="button" className="btn btn-primary" onClick={printSummary}>
+          <FiPrinter aria-hidden="true" /> Save as PDF
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={download}>
+          <FiDownload aria-hidden="true" /> Download JSON
         </button>
         <button type="button" className="btn btn-secondary" onClick={onStartAnother}>
           Submit another response
         </button>
       </div>
 
-      <details className="confirmation-details">
+      {/*
+        Open by default when printing: a <details> that is closed on screen also
+        prints closed, which would produce a PDF containing a reference number and
+        nothing else. `open` is forced in the print stylesheet.
+      */}
+      <details className="confirmation-details" open={printing || undefined}>
         <summary>What you submitted</summary>
         {sections.map((section) => (
           <section className="summary-section" key={section.title}>

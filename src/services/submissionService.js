@@ -19,7 +19,7 @@
  * on a fresh form rather than a stale "you already submitted" screen.
  */
 
-import { addSubmission } from './submissionStore';
+import { addSubmission, uploadCv } from './submissionStore';
 import { isSupabaseConfigured } from './supabaseClient';
 
 // Kept only for the no-backend case, where an instant success looks like nothing
@@ -43,12 +43,19 @@ function referenceId() {
 }
 
 /**
- * A File cannot be serialised or sent as JSON, so we record what a real upload
- * would report back: identity and size, not contents.
+ * The File itself goes to Supabase Storage; what is recorded on the row is its
+ * identity, size, and the object key it was stored under.
  */
-function describeAttachment(file) {
+function describeAttachment(file, storagePath = null) {
   if (!file) return null;
-  return { filename: file.name, sizeBytes: file.size, contentType: file.type };
+  return {
+    filename: file.name,
+    sizeBytes: file.size,
+    contentType: file.type,
+    // Where the file actually lives, or null if the upload failed or there is no
+    // backend configured. The admin view keys its download link off this.
+    storagePath,
+  };
 }
 
 export async function submitApplication(values) {
@@ -64,11 +71,18 @@ export async function submitApplication(values) {
   }
 
   const { cv, ...rest } = values;
+  const reference = referenceId();
+
+  // Uploaded before the row is written, so the row can record where the file
+  // landed. A failed upload leaves `storagePath` null rather than aborting: the
+  // application is still worth keeping, and the admin view shows "not stored".
+  const { path: storagePath, error: uploadError } = await uploadCv(reference, cv);
+
   const receipt = {
-    reference: referenceId(),
+    reference,
     submittedAt: new Date().toISOString(),
     answers: rest,
-    attachment: describeAttachment(cv),
+    attachment: describeAttachment(cv, storagePath),
   };
 
   // The archive write is awaited, but a remote failure does not fail the
@@ -76,7 +90,13 @@ export async function submitApplication(values) {
   // worse than accepting them and saying they are not yet delivered -- which is
   // what `pendingSync` on the receipt tells the confirmation screen to show.
   const { remote, error } = await addSubmission(receipt);
-  const finalReceipt = { ...receipt, delivered: remote, deliveryError: error };
+  const finalReceipt = {
+    ...receipt,
+    delivered: remote,
+    deliveryError: error,
+    cvStored: Boolean(storagePath),
+    cvError: uploadError,
+  };
 
   saveReceipt(finalReceipt);
   return { ok: true, receipt: finalReceipt };

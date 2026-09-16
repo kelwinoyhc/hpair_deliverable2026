@@ -321,7 +321,9 @@ describe('submission', () => {
     const heading = await screen.findByRole('heading', { name: /application is submitted/i }, { timeout: 15000 });
     expect(heading).toBeInTheDocument();
     expect(screen.getByText(/^HPAIR-/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /download a copy/i })).toBeInTheDocument();
+    // Both ways of keeping a copy: a PDF via the print dialog, and raw JSON.
+    expect(screen.getByRole('button', { name: /save as pdf/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download json/i })).toBeInTheDocument();
   });
 
   it('shows an error and keeps the user on the form when submission fails', async () => {
