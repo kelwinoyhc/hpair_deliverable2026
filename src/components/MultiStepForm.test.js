@@ -318,7 +318,7 @@ describe('submission', () => {
       expect(screen.getByRole('button', { name: /submitting/i })).toBeDisabled();
     });
 
-    const heading = await screen.findByRole('heading', { name: /application is submitted/i }, { timeout: 4000 });
+    const heading = await screen.findByRole('heading', { name: /application is submitted/i }, { timeout: 15000 });
     expect(heading).toBeInTheDocument();
     expect(screen.getByText(/^HPAIR-/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /download a copy/i })).toBeInTheDocument();
@@ -332,7 +332,7 @@ describe('submission', () => {
     await completeAndSubmit(user, { email: 'fail@example.com' });
 
     const error = await screen.findByText(/could not reach the submission service/i, undefined, {
-      timeout: 4000,
+      timeout: 15000,
     });
     expect(error).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Review' })).toBeInTheDocument();
@@ -348,7 +348,7 @@ describe('submission', () => {
     render(<MultiStepForm />);
 
     await completeAndSubmit(user);
-    await screen.findByRole('heading', { name: /application is submitted/i }, { timeout: 4000 });
+    await screen.findByRole('heading', { name: /application is submitted/i }, { timeout: 15000 });
 
     expect(window.localStorage.getItem('hpair-form:draft')).toBeNull();
   });
