@@ -1,4 +1,56 @@
-# HPAIR Deliverable
+# HPAIR Delegate Application
+
+A multi-step delegate application form built for the HPAIR deliverable.
+
+## Live links
+
+| | |
+| --- | --- |
+| **Registration form portal** | https://hpair-deliverable2026.vercel.app |
+| **Admin portal** | https://hpair-deliverable2026.vercel.app/#admin |
+
+### Admin portal credentials
+
+```
+Username:  kelvincheung@college.harvard.edu
+Password:  123456
+```
+
+> These are demonstration credentials for a throwaway account, published so
+> reviewers can open the admin portal. Anything submitted through the live form
+> is therefore readable by anyone with this link — please don't enter real
+> personal details.
+
+## What to look at
+
+- **The form** — four steps plus a review. Real-time validation, a CV upload,
+  conditional questions (LinkedIn, visa invitation letter, financial aid),
+  auto-saved progress, and a confirmation you can save as a PDF.
+- **The admin portal** — submissions as rows with counts, an expandable detail
+  view, a signed link to each stored CV, and a CSV export.
+- **[`DESIGN.md`](DESIGN.md)** — every significant decision, the alternative
+  rejected, and the cost paid. Including the access-control bug found in the
+  starter repo and how it was fixed.
+- **[`supabase/schema.sql`](supabase/schema.sql)** — the Row Level Security
+  policies. Reads are refused by Postgres, not by the front-end.
+
+## Running it locally
+
+```bash
+npm install
+npm start                          # http://localhost:3000
+npm test -- --watchAll=false       # 123 tests
+CI=true npm run build              # what Vercel runs
+```
+
+It runs without any configuration — submissions fall back to browser-local
+storage and the admin view says so. To connect a database, see
+[`DESIGN.md` §9](DESIGN.md).
+
+---
+
+<details>
+<summary><strong>Original deliverable brief</strong></summary>
 
 Build a **personal information form application** with the following features:
 
@@ -76,3 +128,5 @@ If you run into any issues cloning the repo or breaking bugs that seem outside o
 ## AI Policy
 
 You're allowed to use AI to complete this deliverable. In the same time, all code you submit is a fair game for the interview - including design decisions, features implementation and trade-offs
+
+</details>
